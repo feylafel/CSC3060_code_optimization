@@ -25,6 +25,7 @@ struct image_proc_args {
 
 // Core functions
 void naive_image_proc(image_proc_args& args);
+// TODO: Student Implementation
 void stu_image_proc(image_proc_args& args);
 
 // Benchmarking wrappers

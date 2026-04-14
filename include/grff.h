@@ -25,6 +25,7 @@ struct grff_args {
 };
 
 void naive_grff(grff_args& args);
+// TODO: Student Implementation
 void stu_grff(grff_args& args);
 
 void naive_grff_wrapper(void *ctx);
