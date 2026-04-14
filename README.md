@@ -52,7 +52,6 @@ Notes:
 
 - `single_bench.cpp` is the easier place to debug one kernel at a time.
 - `run_all.cpp` registers the full benchmark suite and is the better entry point for `perf`.
-- `aos_soa.*` is present in the library, but it is not currently registered in the default benchmark lists in `src/main`.
 
 ## How The Benchmark Files Are Organized
 
@@ -65,7 +64,7 @@ In other words, students normally edit `src/kernel/<name>.cpp`, and sometimes ad
 
 ## Baseline Values And Default Input Sizes
 
-The baseline times are defined in the benchmark headers and are used by `run_all.cpp` when it computes per-benchmark speedup. The table below is sorted by header file name in ascending order and only lists the kernels currently used in `run_all.cpp`. `aos_soa` is ignored for now.
+The baseline times are defined in the benchmark headers and are used by `run_all.cpp` when it computes per-benchmark speedup. The table below is sorted by header file name in ascending order and only lists the kernels currently used in `run_all.cpp`.
 
 | Header file | Baseline constant | Baseline time (ns) | Default input size in `run_all.cpp` |
 | --- | --- | --- | --- |
