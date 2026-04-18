@@ -1,5 +1,6 @@
 #include "relu.h"
 #include <algorithm>
+#include <bit>
 #include <cstdint>
 #include <random>
 
@@ -31,7 +32,12 @@ void naive_relu(std::span<float> data) {
 }
 
 void stu_relu(std::span<float> data) {
-    // TODO: Implement your version, and call it in stu_relu_wrapper
+    // Branch-free ReLU: IEEE-754 bits as int32_t, mask clears negative values.
+    for (float &value : data) {
+        std::int32_t bits = std::bit_cast<std::int32_t>(value);
+        bits &= ~(bits >> 31);
+        value = std::bit_cast<float>(bits);
+    }
 }
 
 void naive_relu_wrapper(void *ctx) {
