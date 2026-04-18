@@ -36,11 +36,10 @@ int main() {
               << ", nnz=" << sparse_args.csr.values.size() << '\n';
 
     constexpr size_t relu_size = 1024000;
-    // Student and reference must be separate objects: the checker runs naive on
-    // ref_ctx; if args and ref_args pointed to the same buffer, outputs would
-    // collide.
+    relu_args relu_args_naive;
     relu_args relu_args_stu;
     relu_args relu_args_ref;
+    initialize_relu(&relu_args_naive, relu_size, seed);
     initialize_relu(&relu_args_stu, relu_size, seed);
     initialize_relu(&relu_args_ref, relu_size, seed);
     std::println("\tReLU: vector length={}", relu_size);
@@ -88,6 +87,57 @@ int main() {
                                seed);
     std::cout << "\tFilter Gradient: " << HEIGHT << " x " << WIDTH << '\n';
 
+    blackscholes_args black_args_stu;
+    blackscholes_args black_args_ref;
+    initialize_blackscholes(black_args_stu, 81920, seed);
+    initialize_blackscholes(black_args_ref, 81920, seed);
+
+    sparse_spmm_args sparse_args_stu;
+    sparse_spmm_args sparse_args_ref;
+    initialize_spmm(sparse_args_stu, 512, 512, -1, {}, seed);
+    initialize_spmm(sparse_args_ref, 512, 512, -1, {}, seed);
+
+    bitwise_args bitwise_args_stu;
+    bitwise_args bitwise_args_ref;
+    initialize_bitwise(&bitwise_args_stu, bitwise_size, seed);
+    initialize_bitwise(&bitwise_args_ref, bitwise_size, seed);
+
+    matmul_args matmul_args_stu;
+    matmul_args matmul_args_ref;
+    initialize_matmul(matmul_args_stu, 512, seed);
+    initialize_matmul(matmul_args_ref, 512, seed);
+
+    trace_replay_args trace_args_stu;
+    trace_replay_args trace_args_ref;
+    initialize_trace_replay(trace_args_stu, 1 << 16, 1 << 20, seed);
+    initialize_trace_replay(trace_args_ref, 1 << 16, 1 << 20, seed);
+
+    graph_args graph_args_stu;
+    graph_args graph_args_ref;
+    initialize_graph(&graph_args_stu, graph_node_count, graph_avg_degree, seed);
+    initialize_graph(&graph_args_ref, graph_node_count, graph_avg_degree, seed);
+
+    grff_args grff_args_stu;
+    grff_args grff_args_ref;
+    initialize_grff(&grff_args_stu, grff_size, seed);
+    initialize_grff(&grff_args_ref, grff_size, seed);
+
+    image_proc_args image_args_stu;
+    image_proc_args image_args_ref;
+    initialize_image_proc(&image_args_stu, image_width, image_height, seed);
+    initialize_image_proc(&image_args_ref, image_width, image_height, seed);
+
+    filter_gradient_args filter_gradient_args_stu;
+    filter_gradient_args filter_gradient_args_ref_stu;
+    initialize_filter_gradient(&filter_gradient_args_stu,
+                               WIDTH,
+                               HEIGHT,
+                               seed);
+    initialize_filter_gradient(&filter_gradient_args_ref_stu,
+                               WIDTH,
+                               HEIGHT,
+                               seed);
+
     std::vector<bench_t> benchmarks = {
         {"Black-Scholes (Naive)",
          naive_BlkSchls_wrapper,
@@ -96,6 +146,13 @@ int main() {
          &black_args,
          &black_args,
          BASELINE_BLACKSCHOLES},
+        {"Black-Scholes (Student)",
+         stu_BlkSchls_wrapper,
+         naive_BlkSchls_wrapper,
+         BlkSchls_check,
+         &black_args_stu,
+         &black_args_ref,
+         BASELINE_BLACKSCHOLES},
         {"Sparse SpMM (Naive)",
          naive_sparse_spmm_wrapper,
          naive_sparse_spmm_wrapper,
@@ -103,6 +160,20 @@ int main() {
          &sparse_args,
          &sparse_args,
          BASELINE_SPARSE_SPMM},
+        {"Sparse SpMM (Student)",
+         stu_sparse_spmm_wrapper,
+         naive_sparse_spmm_wrapper,
+         sparse_spmm_check,
+         &sparse_args_stu,
+         &sparse_args_ref,
+         BASELINE_SPARSE_SPMM},
+        {"ReLU (Naive)",
+         naive_relu_wrapper,
+         naive_relu_wrapper,
+         relu_check,
+         &relu_args_naive,
+         &relu_args_naive,
+         BASELINE_RELU},
         {"ReLU (Student)",
          stu_relu_wrapper,
          naive_relu_wrapper,
@@ -117,12 +188,26 @@ int main() {
          &bitwise_args_naive,
          &bitwise_args_naive,
          BASELINE_BITWISE},
+        {"Bitwise (Student)",
+         stu_bitwise_wrapper,
+         naive_bitwise_wrapper,
+         bitwise_check,
+         &bitwise_args_stu,
+         &bitwise_args_ref,
+         BASELINE_BITWISE},
         {"MatMul (Naive)",
          naive_matmul_wrapper,
          naive_matmul_wrapper,
          matmul_check,
          &matmul_args_naive,
          &matmul_args_naive,
+         BASELINE_MATMUL},
+        {"MatMul (Student)",
+         stu_matmul_wrapper,
+         naive_matmul_wrapper,
+         matmul_check,
+         &matmul_args_stu,
+         &matmul_args_ref,
          BASELINE_MATMUL},
         {"Trace Replay (Naive)",
          naive_trace_replay_wrapper,
@@ -131,12 +216,26 @@ int main() {
          &trace_args_naive,
          &trace_args_naive,
          BASELINE_TRACE_REPLAY},
+        {"Trace Replay (Student)",
+         stu_trace_replay_wrapper,
+         naive_trace_replay_wrapper,
+         trace_replay_check,
+         &trace_args_stu,
+         &trace_args_ref,
+         BASELINE_TRACE_REPLAY},
         {"Graph (Naive)",
          naive_graph_wrapper,
          naive_graph_wrapper,
          graph_check,
          &graph_args_naive,
          &graph_args_naive,
+         BASELINE_GRAPH},
+        {"Graph (Student)",
+         stu_graph_wrapper,
+         naive_graph_wrapper,
+         graph_check,
+         &graph_args_stu,
+         &graph_args_ref,
          BASELINE_GRAPH},
         {"GRFF (Naive)",
          naive_grff_wrapper,
@@ -145,6 +244,13 @@ int main() {
          &grff_args_naive,
          &grff_args_naive,
          BASELINE_GRFF},
+        {"GRFF (Student)",
+         stu_grff_wrapper,
+         naive_grff_wrapper,
+         grff_check,
+         &grff_args_stu,
+         &grff_args_ref,
+         BASELINE_GRFF},
         {"Image Proc (Naive)",
          naive_image_proc_wrapper,
          naive_image_proc_wrapper,
@@ -152,12 +258,26 @@ int main() {
          &image_args_naive,
          &image_args_naive,
          BASELINE_IMAGE_PROC},
+        {"Image Proc (Student)",
+         stu_image_proc_wrapper,
+         naive_image_proc_wrapper,
+         image_proc_check,
+         &image_args_stu,
+         &image_args_ref,
+         BASELINE_IMAGE_PROC},
         {"Filter Gradient (Naive)",
          naive_filter_gradient_wrapper,
          naive_filter_gradient_wrapper,
          filter_gradient_check,
          &filter_gradient_args_ref,
          &filter_gradient_args_ref,
+         BASELINE_FILTER_GRADIENT},
+        {"Filter Gradient (Student)",
+         stu_filter_gradient_wrapper,
+         naive_filter_gradient_wrapper,
+         filter_gradient_check,
+         &filter_gradient_args_stu,
+         &filter_gradient_args_ref_stu,
          BASELINE_FILTER_GRADIENT}};
 
     std::cout << "\nRunning Benchmarks...\n";
