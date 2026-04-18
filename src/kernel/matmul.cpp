@@ -49,6 +49,32 @@ void stu_matmul(std::vector<float>& C,
                 const std::vector<float>& B,
                 int n) {
     // TODO: Implement your version, and call it in stu_matmul_wrapper
+    std::fill(C.begin(), C.end(), 0.0f);
+    // do it 32x32 i and j values
+    int blocksz = 16;
+    for (int iblock = 0; iblock < n; iblock += blocksz)
+    {
+        int ilim = std::min(iblock + blocksz, n);
+        for (int kblock = 0; kblock < n; kblock += blocksz)
+        {
+            int klim = std::min(kblock + blocksz, n);
+            for (int jblock = 0; jblock < n; jblock += blocksz)
+            {
+                int jlim = std::min(jblock + blocksz, n);
+                for (int i = iblock; i < ilim; i++)
+                {
+                    for (int k = kblock; k < klim; k++)
+                    {
+                        float aval = A[i * n + k];
+                        for (int j = jblock; j < jlim; j++)
+                        {
+                            C[i * n + j] += aval * B[k * n + j]; 
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 void naive_matmul_wrapper(void* ctx) {
