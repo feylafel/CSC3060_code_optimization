@@ -36,8 +36,13 @@ int main() {
               << ", nnz=" << sparse_args.csr.values.size() << '\n';
 
     constexpr size_t relu_size = 1024000;
-    relu_args relu_args_naive;
-    initialize_relu(&relu_args_naive, relu_size, seed);
+    // Student and reference must be separate objects: the checker runs naive on
+    // ref_ctx; if args and ref_args pointed to the same buffer, outputs would
+    // collide.
+    relu_args relu_args_stu;
+    relu_args relu_args_ref;
+    initialize_relu(&relu_args_stu, relu_size, seed);
+    initialize_relu(&relu_args_ref, relu_size, seed);
     std::println("\tReLU: vector length={}", relu_size);
 
     constexpr size_t bitwise_size = 1024000;
@@ -98,12 +103,12 @@ int main() {
          &sparse_args,
          &sparse_args,
          BASELINE_SPARSE_SPMM},
-        {"ReLU (Naive)",
-         naive_relu_wrapper,
+        {"ReLU (Student)",
+         stu_relu_wrapper,
          naive_relu_wrapper,
          relu_check,
-         &relu_args_naive,
-         &relu_args_naive,
+         &relu_args_stu,
+         &relu_args_ref,
          BASELINE_RELU},
         {"Bitwise (Naive)",
          naive_bitwise_wrapper,
