@@ -1,5 +1,0 @@
-C:/programmming/csc3060/124040074_P5/ciaciarepo/CSC3060_code_optimization/build/CMakeFiles/kernels.dir
-C:/programmming/csc3060/124040074_P5/ciaciarepo/CSC3060_code_optimization/build/CMakeFiles/single_bench.dir
-C:/programmming/csc3060/124040074_P5/ciaciarepo/CSC3060_code_optimization/build/CMakeFiles/run_all.dir
-C:/programmming/csc3060/124040074_P5/ciaciarepo/CSC3060_code_optimization/build/CMakeFiles/edit_cache.dir
-C:/programmming/csc3060/124040074_P5/ciaciarepo/CSC3060_code_optimization/build/CMakeFiles/rebuild_cache.dir
