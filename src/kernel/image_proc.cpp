@@ -162,7 +162,74 @@ void naive_image_proc(image_proc_args& args) {
 // TODO: Student Implementation
 // -------------------------------------------------------------------------
 void stu_image_proc(image_proc_args& args) {
-
+    const size_t w = args.width;
+    const size_t h = args.height;
+     float *__restrict__ out = args.output.data();
+    const float *__restrict__ r_in = args.r_channel.data();
+    const float *__restrict__ g_in = args.g_channel.data();
+    const float *__restrict__ b_in = args.b_channel.data();
+    const float threshold = args.threshold;
+    for (size_t y = 0; y < h; ++y) {
+        for (size_t x = 0; x < w; ++x) {
+            const size_t i = y * w + x;
+            float r_val = r_in[i] * 1.05f + 0.02f;
+            r_val = (r_val > 1.0f) ? 1.0f : r_val;
+            float g_val = g_in[i] * 1.05f + 0.02f;
+            g_val = (g_val > 1.0f) ? 1.0f : g_val;
+            float b_val = b_in[i] * 1.05f + 0.02f;
+            b_val = (b_val > 1.0f) ? 1.0f : b_val;
+            const float gray =
+                (r_val * 0.299f) + (g_val * 0.587f) + (b_val * 0.114f);
+            const float adjusted =
+                std::clamp((gray - 0.05f) / 0.90f, 0.0f, 1.0f);
+            const float gray_enhance =
+                adjusted * adjusted * (3.0f - 2.0f * adjusted);
+            const float val = gray_enhance;
+            const float intensity = val * 1.2f;
+            const float g1 = intensity * 0.5f;
+            const float g2 = g1 * g1 + 0.1f;
+            const float g3 = std::sqrt(g2);
+            const float gain_hdr = (g3 > 1.0f) ? (1.0f / g3) : (g3 * 0.95f);
+            const float hdr_mid = val * gain_hdr;
+            const float compress_val = hdr_mid / (1.0f + hdr_mid);
+            const float p0 = 0.11f, p1 = 0.22f, p2 = 0.33f, p3 = 0.44f,
+                        p4 = 0.55f;
+            const float p5 = 0.66f, p6 = 0.77f, p7 = 0.88f, p8 = 0.99f,
+                        p9 = 1.01f;
+            float mask = 0.0f;
+            if (compress_val > threshold) {
+                mask = (r_val * p0) + (g_val * p1) - (b_val * p2) + p9;
+                if (mask > 0.8f) {
+                    mask *= p3;
+                } else {
+                    mask += p4;
+                }
+            } else {
+                mask = (r_val * p5) - (g_val * p6) + (b_val * p7) - p8;
+                if (mask < 0.2f) {
+                    mask += p1;
+                } else {
+                    mask *= p2;
+                }
+            }
+            const float noise =
+                std::sin(compress_val * p0) * std::cos(r_val * p1);
+            float mask_out = (mask * 0.7f) + (noise * 0.3f);
+            mask_out = std::clamp(mask_out, 0.0f, 1.0f);
+            static const float lut[] = {0.0f, 0.3f, 1.0f, 0.3f, 0.0f};
+            const float scaled = mask_out * 4.0f;
+            int idx = std::clamp(static_cast<int>(scaled), 0, 4);
+            const float weight_frac = scaled - static_cast<float>(idx);
+            float weight = 0.0f;
+            if (idx < 4) {
+                weight = lut[idx] * (1.0f - weight_frac) +
+                         lut[idx + 1] * weight_frac;
+            } else {
+                weight = lut[4];
+            }
+            out[i] = std::clamp(compress_val * weight, 0.0f, 1.0f);
+        }
+    }
 }
 
 
