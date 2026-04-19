@@ -6,25 +6,29 @@
 #include <vector>
 
 #include "bench.h"
-#include "relu.h"
-
+#include "matmul.h"
 
 int main() {
     std::uint32_t seed = 12345u;
-    constexpr size_t relu_size = 1024000;
-    relu_args relu_args_naive;
-    initialize_relu(&relu_args_naive, relu_size, seed);
-    std::println("\tReLU: vector length={}", relu_size);
+    constexpr int n = 512;
+
+    matmul_args matmul_args_stu;
+    matmul_args matmul_args_ref;
+    initialize_matmul(matmul_args_stu, n, seed);
+    initialize_matmul(matmul_args_ref, n, seed);
+
+    std::println("\tMatMul: n={}", n);
 
     std::vector<bench_t> benchmarks = {
-                {"ReLU (Naive)",
-                 naive_relu_wrapper,
-                 naive_relu_wrapper,
-                 relu_check,
-                 &relu_args_naive,
-                 &relu_args_naive,
-                 BASELINE_RELU},
+        {"MatMul (Student)",
+         stu_matmul_wrapper,
+         naive_matmul_wrapper,
+         matmul_check,
+         &matmul_args_stu,
+         &matmul_args_ref,
+         BASELINE_MATMUL},
     };
+
     std::cout << "\nRunning Benchmarks...\n";
     std::cout << "--------------------------------------------------------\n";
     std::cout << std::left << std::setw(25) << "Benchmark" << std::setw(12)
@@ -32,22 +36,18 @@ int main() {
               << "\n";
     std::cout << "--------------------------------------------------------\n";
 
-    for (const auto &bench : benchmarks) {
+    constexpr int k_best = 20;
+    for (const auto& bench : benchmarks) {
         std::chrono::nanoseconds avg_time{0};
-        const int k_best = 20;
 
         for (int i = 0; i < k_best; ++i) {
             flush_cache();
             const auto elapsed = measure_time([&] { bench.tfunc(bench.args); });
-
             avg_time += elapsed;
-            debug_log("\tDEBUG: {}-th measurement: {} ns\n",
-                      i,
-                      static_cast<std::uint64_t>(elapsed.count()));
         }
         avg_time /= static_cast<uint64_t>(k_best);
 
-        bool correct =
+        const bool correct =
             bench.checkFunc(bench.args, bench.ref_args, bench.naiveFunc);
 
         std::cout << std::left << std::setw(25) << bench.description;
