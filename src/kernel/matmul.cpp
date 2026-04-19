@@ -6,6 +6,8 @@
 #include <stdexcept>
 #include <vector>
 
+#include <iostream>
+
 void initialize_matmul(matmul_args& args, int n, uint32_t seed) {
     if (n <= 0) {
         throw std::invalid_argument("initialize_matmul: n must be positive.");
@@ -48,27 +50,41 @@ void stu_matmul(std::vector<float>& C,
                 const std::vector<float>& A,
                 const std::vector<float>& B,
                 int n) {
-    // TODO: Implement your version, and call it in stu_matmul_wrapper
     std::fill(C.begin(), C.end(), 0.0f);
-    // do it 32x32 i and j values
-    int blocksz = 16;
+    const int blocksz = 32;
+    const int jblocksz = 64;
     for (int iblock = 0; iblock < n; iblock += blocksz)
     {
         int ilim = std::min(iblock + blocksz, n);
         for (int kblock = 0; kblock < n; kblock += blocksz)
         {
             int klim = std::min(kblock + blocksz, n);
-            for (int jblock = 0; jblock < n; jblock += blocksz)
+            for (int jblock = 0; jblock < n; jblock += jblocksz)
             {
-                int jlim = std::min(jblock + blocksz, n);
-                for (int i = iblock; i < ilim; i++)
+                int jlim = std::min(jblock + jblocksz, n);
+                for (int i = iblock; i < ilim; ++i)
                 {
-                    for (int k = kblock; k < klim; k++)
+                    float* cptr = &C[i * n];
+                    for (int k = kblock; k < klim; ++k)
                     {
                         float aval = A[i * n + k];
-                        for (int j = jblock; j < jlim; j++)
+                        const float* bptr = &B[k * n];
+                        int j = jblock;
+
+                        for (; j + 7 < jlim; j += 8)
                         {
-                            C[i * n + j] += aval * B[k * n + j]; 
+                            *(cptr + j) += *(bptr + j) * aval;
+                            *(cptr + j + 1) += *(bptr + j + 1) * aval;
+                            *(cptr + j + 2) += *(bptr + j + 2) * aval;
+                            *(cptr + j + 3) += *(bptr + j + 3) * aval;
+                            *(cptr + j + 4) += *(bptr + j + 4) * aval;
+                            *(cptr + j + 5) += *(bptr + j + 5) * aval;
+                            *(cptr + j + 6) += *(bptr + j + 6) * aval;
+                            *(cptr + j + 7) += *(bptr + j + 7) * aval;
+                        }
+                        for (; j < jlim; ++j)
+                        {
+                            *(cptr + j) += *(bptr + j) * aval;
                         }
                     }
                 }
@@ -76,6 +92,7 @@ void stu_matmul(std::vector<float>& C,
         }
     }
 }
+
 
 void naive_matmul_wrapper(void* ctx) {
     auto& args = *static_cast<matmul_args*>(ctx);
@@ -97,6 +114,7 @@ bool matmul_check(void* stu_ctx, void* ref_ctx, lab_test_func naive_func) {
         debug_log("\tDEBUG: matmul size mismatch: stu={} ref={}\n",
                   stu_args.C.size(),
                   ref_args.C.size());
+        
         return false;
     }
 
