@@ -35,6 +35,30 @@ void initialize_bitwise(bitwise_args *args, const size_t size,
 // Student should not change this function
 void naive_bitwise(std::span<std::int8_t> result,
                    std::span<const std::int8_t> a,
+                   std::span<const std::int8_t> b) {
+    constexpr std::uint8_t kMaskLo = 0x5Au;
+    constexpr std::uint8_t kMaskHi = 0xC3u;
+
+    const std::size_t n = std::min({result.size(), a.size(), b.size()});
+    for (std::size_t i = 0; i < n; ++i) {
+        const auto ua = static_cast<std::uint8_t>(a[i]);
+        const auto ub = static_cast<std::uint8_t>(b[i]);
+
+        const auto shared = static_cast<std::uint8_t>(ua & ub);
+        const auto either = static_cast<std::uint8_t>(ua | ub);
+        const auto diff = static_cast<std::uint8_t>(ua ^ ub);
+        const auto mixed0 =
+            static_cast<std::uint8_t>((diff & kMaskLo) | (~shared & ~kMaskLo));
+        const auto mixed1 = static_cast<std::uint8_t>(
+            ((either ^ kMaskHi) & (shared | ~kMaskHi)) ^ diff);
+
+        result[i] = static_cast<std::int8_t>(mixed0 ^ mixed1);
+    }
+}
+
+// TODO: Optimize the bitwise function
+void stu_bitwise(std::span<std::int8_t> result,
+                   std::span<const std::int8_t> a,
                    std::span<const std::int8_t> b)  {
     constexpr std::uint8_t kMaskLo = 0x5Au;
     constexpr std::uint8_t kMaskHi = 0xC3u;
