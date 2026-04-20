@@ -18,9 +18,16 @@ target_include_directories(kernels
 
 target_compile_options(kernels
     PRIVATE
-        -O2 -mavx2 -Wall
-        # originally -ffast-math -O2 -Wall -g -fno-omit-frame-pointer 
+        -ffast-math -O2 -Wall -g -fno-omit-frame-pointer 
 )
+
+# for bitwise.cpp, we use AVX2 instructions
+set_source_files_properties(
+    "${CMAKE_SOURCE_DIR}/src/kernel/bitwise.cpp"
+    PROPERTIES
+    COMPILE_OPTIONS "-O3;-mavx2"
+) 
+
 target_include_directories(kernels PUBLIC include)
 
 # ---- Executables ----
