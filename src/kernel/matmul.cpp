@@ -70,21 +70,20 @@ void stu_matmul(std::vector<float>& C,
                         float aval = A[i * n + k];
                         const float* bptr = &B[k * n];
                         int j = jblock;
-
                         for (; j + 7 < jlim; j += 8)
                         {
-                            *(cptr + j) += *(bptr + j) * aval;
-                            *(cptr + j + 1) += *(bptr + j + 1) * aval;
-                            *(cptr + j + 2) += *(bptr + j + 2) * aval;
-                            *(cptr + j + 3) += *(bptr + j + 3) * aval;
-                            *(cptr + j + 4) += *(bptr + j + 4) * aval;
-                            *(cptr + j + 5) += *(bptr + j + 5) * aval;
-                            *(cptr + j + 6) += *(bptr + j + 6) * aval;
-                            *(cptr + j + 7) += *(bptr + j + 7) * aval;
+                            cptr[j] += bptr[j] * aval;
+                            cptr[j + 1] += bptr[j + 1] * aval;
+                            cptr[j + 2] += bptr[j + 2] * aval;
+                            cptr[j + 3] += bptr[j + 3] * aval;
+                            cptr[j + 4] += bptr[j + 4] * aval;
+                            cptr[j + 5] += bptr[j + 5] * aval;
+                            cptr[j + 6] += bptr[j + 6] * aval;
+                            cptr[j + 7] += bptr[j + 7] * aval;
                         }
                         for (; j < jlim; ++j)
                         {
-                            *(cptr + j) += *(bptr + j) * aval;
+                            cptr[j] += bptr[j] * aval;
                         }
                     }
                 }
