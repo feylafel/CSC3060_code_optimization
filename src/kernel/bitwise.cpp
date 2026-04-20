@@ -35,66 +35,95 @@ void initialize_bitwise(bitwise_args *args, const size_t size,
 // Student should not change this function
 void naive_bitwise(std::span<std::int8_t> result,
                    std::span<const std::int8_t> a,
-                   std::span<const std::int8_t> b) {
+                   std::span<const std::int8_t> b)  {
     constexpr std::uint8_t kMaskLo = 0x5Au;
     constexpr std::uint8_t kMaskHi = 0xC3u;
-
-    const std::size_t n = std::min({result.size(), a.size(), b.size()});
-    for (std::size_t i = 0; i < n; ++i) {
-        const auto ua = static_cast<std::uint8_t>(a[i]);
-        const auto ub = static_cast<std::uint8_t>(b[i]);
-
-        const auto shared = static_cast<std::uint8_t>(ua & ub);
-        const auto either = static_cast<std::uint8_t>(ua | ub);
-        const auto diff = static_cast<std::uint8_t>(ua ^ ub);
-        const auto mixed0 =
-            static_cast<std::uint8_t>((diff & kMaskLo) | (~shared & ~kMaskLo));
-        const auto mixed1 = static_cast<std::uint8_t>(
-            ((either ^ kMaskHi) & (shared | ~kMaskHi)) ^ diff);
-
-        result[i] = static_cast<std::int8_t>(mixed0 ^ mixed1);
+    std::size_t n;
+    if (result.size() == a.size() && a.size() == b.size()) {
+        n = result.size();
+    } else {
+        n = std::min({result.size(), a.size(), b.size()});
     }
-}
-
-// TODO: Optimize the bitwise function
-void stu_bitwise(std::span<std::int8_t> result, std::span<const std::int8_t> a,
-                 std::span<const std::int8_t> b) {
-    constexpr std::uint8_t kMaskLo = 0x5Au;
-    constexpr std::uint8_t kMaskHi = 0xC3u;
-    const std::size_t n = std::min({result.size(), a.size(), b.size()});
+    auto* out = result.data();
+    const auto* pa = a.data();
+    const auto* pb = b.data();
     std::size_t i = 0;
-    const __m128i mask_lo = _mm_set1_epi8(static_cast<char>(kMaskLo));
-    const __m128i mask_hi = _mm_set1_epi8(static_cast<char>(kMaskHi));
-    const __m128i all_ones = _mm_set1_epi8(static_cast<char>(0xFF));
+#if defined(__AVX2__)
+    const __m256i mlo256 = _mm256_set1_epi8(static_cast<char>(kMaskLo));
+    const __m256i mhi256 = _mm256_set1_epi8(static_cast<char>(kMaskHi));
+    const __m256i ones256 = _mm256_set1_epi8(static_cast<char>(0xFF));
+    // Unroll x2: 64 bytes per iteration
+    const std::size_t n64 = n & ~static_cast<std::size_t>(63);
+    for (; i < n64; i += 64) {
+        __m256i va0 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(pa + i));
+        __m256i vb0 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(pb + i));
+        __m256i va1 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(pa + i + 32));
+        __m256i vb1 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(pb + i + 32));
+        auto do_lane = [&](const __m256i va, const __m256i vb) {
+            const __m256i shared = _mm256_and_si256(va, vb);
+            const __m256i either = _mm256_or_si256(va, vb);
+            const __m256i diff   = _mm256_xor_si256(va, vb);
+            const __m256i mixed0 = _mm256_or_si256(
+                _mm256_and_si256(diff, mlo256),
+                _mm256_and_si256(_mm256_xor_si256(shared, ones256),
+                                 _mm256_xor_si256(mlo256, ones256)));
+            const __m256i mixed1 = _mm256_xor_si256(
+                _mm256_and_si256(
+                    _mm256_xor_si256(either, mhi256),
+                    _mm256_or_si256(shared, _mm256_xor_si256(mhi256, ones256))),
+                diff);
+            return _mm256_xor_si256(mixed0, mixed1);
+        };
+        __m256i out0 = do_lane(va0, vb0);
+        __m256i out1 = do_lane(va1, vb1);
+        _mm256_storeu_si256(reinterpret_cast<__m256i*>(out + i), out0);
+        _mm256_storeu_si256(reinterpret_cast<__m256i*>(out + i + 32), out1);
+    }
+    const std::size_t n32 = n & ~static_cast<std::size_t>(31);
+    for (; i < n32; i += 32) {
+        const __m256i va = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(pa + i));
+        const __m256i vb = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(pb + i));
+        const __m256i shared = _mm256_and_si256(va, vb);
+        const __m256i either = _mm256_or_si256(va, vb);
+        const __m256i diff   = _mm256_xor_si256(va, vb);
+        const __m256i mixed0 = _mm256_or_si256(
+            _mm256_and_si256(diff, mlo256),
+            _mm256_and_si256(_mm256_xor_si256(shared, ones256),
+                             _mm256_xor_si256(mlo256, ones256)));
+        const __m256i mixed1 = _mm256_xor_si256(
+            _mm256_and_si256(
+                _mm256_xor_si256(either, mhi256),
+                _mm256_or_si256(shared, _mm256_xor_si256(mhi256, ones256))),
+            diff);
+        const __m256i outv = _mm256_xor_si256(mixed0, mixed1);
+        _mm256_storeu_si256(reinterpret_cast<__m256i*>(out + i), outv);
+    }
+#endif
+    const __m128i mlo128 = _mm_set1_epi8(static_cast<char>(kMaskLo));
+    const __m128i mhi128 = _mm_set1_epi8(static_cast<char>(kMaskHi));
+    const __m128i ones128 = _mm_set1_epi8(static_cast<char>(0xFF));
     const std::size_t n16 = n & ~static_cast<std::size_t>(15);
     for (; i < n16; i += 16) {
-        const __m128i va = _mm_loadu_si128(
-            reinterpret_cast<const __m128i*>(a.data() + i));
-        const __m128i vb = _mm_loadu_si128(
-            reinterpret_cast<const __m128i*>(b.data() + i));
+        const __m128i va = _mm_loadu_si128(reinterpret_cast<const __m128i*>(pa + i));
+        const __m128i vb = _mm_loadu_si128(reinterpret_cast<const __m128i*>(pb + i));
         const __m128i shared = _mm_and_si128(va, vb);
         const __m128i either = _mm_or_si128(va, vb);
         const __m128i diff   = _mm_xor_si128(va, vb);
-        // mixed0 = (diff & kMaskLo) | (~shared & ~kMaskLo)
-        const __m128i not_shared  = _mm_xor_si128(shared, all_ones);
-        const __m128i not_mask_lo = _mm_xor_si128(mask_lo, all_ones);
         const __m128i mixed0 = _mm_or_si128(
-            _mm_and_si128(diff, mask_lo),
-            _mm_and_si128(not_shared, not_mask_lo));
-        // mixed1 = ((either ^ kMaskHi) & (shared | ~kMaskHi)) ^ diff
-        const __m128i not_mask_hi = _mm_xor_si128(mask_hi, all_ones);
+            _mm_and_si128(diff, mlo128),
+            _mm_and_si128(_mm_xor_si128(shared, ones128),
+                          _mm_xor_si128(mlo128, ones128)));
         const __m128i mixed1 = _mm_xor_si128(
             _mm_and_si128(
-                _mm_xor_si128(either, mask_hi),
-                _mm_or_si128(shared, not_mask_hi)),
+                _mm_xor_si128(either, mhi128),
+                _mm_or_si128(shared, _mm_xor_si128(mhi128, ones128))),
             diff);
         const __m128i outv = _mm_xor_si128(mixed0, mixed1);
-        _mm_storeu_si128(reinterpret_cast<__m128i*>(result.data() + i), outv);
+        _mm_storeu_si128(reinterpret_cast<__m128i*>(out + i), outv);
     }
-    // Scalar tail for remaining bytes (exact same semantics as naive)
     for (; i < n; ++i) {
-        const auto ua = static_cast<std::uint8_t>(a[i]);
-        const auto ub = static_cast<std::uint8_t>(b[i]);
+        const auto ua = static_cast<std::uint8_t>(pa[i]);
+        const auto ub = static_cast<std::uint8_t>(pb[i]);
         const auto shared = static_cast<std::uint8_t>(ua & ub);
         const auto either = static_cast<std::uint8_t>(ua | ub);
         const auto diff   = static_cast<std::uint8_t>(ua ^ ub);
@@ -102,7 +131,7 @@ void stu_bitwise(std::span<std::int8_t> result, std::span<const std::int8_t> a,
             (diff & kMaskLo) | (~shared & ~kMaskLo));
         const auto mixed1 = static_cast<std::uint8_t>(
             ((either ^ kMaskHi) & (shared | ~kMaskHi)) ^ diff);
-        result[i] = static_cast<std::int8_t>(mixed0 ^ mixed1);
+        out[i] = static_cast<std::int8_t>(mixed0 ^ mixed1);
     }
 }
 
