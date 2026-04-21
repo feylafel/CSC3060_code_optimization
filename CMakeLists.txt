@@ -27,7 +27,7 @@ target_compile_options(kernels
 set_source_files_properties(
     "${CMAKE_SOURCE_DIR}/src/kernel/bitwise.cpp"
     PROPERTIES
-    COMPILE_OPTIONS "-mavx2"
+    COMPILE_OPTIONS "-O3;-mavx2"
 ) 
 
 # matmul cpp benefits from loop unroll and O3
