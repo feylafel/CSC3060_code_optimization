@@ -6,6 +6,19 @@
 #include <random>
 #include <vector>
 
+void convert_graph(Graph &graph, std::vector<int> &adj, std::vector<int> &nodepos)
+{
+    nodepos.resize(graph.n + 1);
+    for (int u = 0; u < graph.n; ++u) {
+        nodepos[u] = adj.size();
+        const Edge* e = graph.nodes[u].edges;
+        while (e) {
+            adj.push_back(e->to);
+            e = e->next;
+        }
+    }
+    nodepos[graph.n] = adj.size();
+}
 
 void initialize_graph(graph_args* args,
                        std::size_t node_count,
@@ -47,6 +60,7 @@ void initialize_graph(graph_args* args,
         edge_pos += static_cast<std::size_t>(avg_degree);
     }
 
+    convert_graph(args->graph, args->adj, args->nodepos);
     args->out = 0;
 }
 
@@ -62,10 +76,15 @@ void naive_graph(std::uint64_t& out, const Graph& graph) {
     out = checksum;
 }
 
-void stu_graph(std::uint64_t& out, const Graph& graph) {
+void stu_graph(std::uint64_t& out, const std::vector<int> &adj, const std::vector<int> &nodepos) {
     // TODO: You may need to add a function to convert data structure (not
     // included in time measurement), then implement your version in
-    // stu_graph, whch is called by stu_graph_wrapper.
+    // stu_graph, whch is called by stu_graph_wrapper.  
+    std::uint64_t res = 0;
+    for (size_t i = 0; i < adj.size(); ++i){
+        res += static_cast<uint64_t> (adj[i]);
+    }
+    out = res;
 }
 
 void naive_graph_wrapper(void* ctx) {
@@ -75,7 +94,7 @@ void naive_graph_wrapper(void* ctx) {
 
 void stu_graph_wrapper(void* ctx) {
     auto& args = *static_cast<graph_args*>(ctx);
-    stu_graph(args.out, args.graph);
+    stu_graph(args.out, args.adj, args.nodepos);
 }
 
 bool graph_check(void* stu_ctx, void* ref_ctx, lab_test_func naive_func) {

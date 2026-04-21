@@ -30,7 +30,8 @@ struct graph_args {
     std::uint64_t out;
     double epsilon;
     // TODO: You may want to add new params at the end...
-
+    std::vector<int> adj;
+    std::vector<int> nodepos;
     explicit graph_args(double epsilon_in = 1e-6)
         : graph{0, nullptr}, out{0}, epsilon{epsilon_in} {}
 };
@@ -39,7 +40,9 @@ void naive_graph(std::uint64_t& out, const Graph& graph);
 // TODO: You may need to add a function to convert data structure (not 
 // included in time measurement), then implement your version in 
 // stu_graph, whch is called by stu_graph_wrapper.
-void stu_graph(std::uint64_t& out, const Graph& graph);
+void convert_graph(Graph &graph, std::vector<int> &adj, std::vector<int> &nodepos);
+
+void stu_graph(std::uint64_t& out, const std::vector<int> &adj, const std::vector<int> &nodepos);
 
 void naive_graph_wrapper(void* ctx);
 void stu_graph_wrapper(void* ctx);

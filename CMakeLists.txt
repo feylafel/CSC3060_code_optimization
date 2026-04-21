@@ -27,7 +27,7 @@ target_compile_options(kernels
 set_source_files_properties(
     "${CMAKE_SOURCE_DIR}/src/kernel/bitwise.cpp"
     PROPERTIES
-    COMPILE_OPTIONS "-O3;-mavx2;-march=native;-prefetch-loop-arrays"
+    COMPILE_OPTIONS "-O3;-mavx2;-march=native;"
 ) 
 
 # matmul cpp benefits from loop unroll and O3
@@ -35,6 +35,13 @@ set_source_files_properties(
     "${CMAKE_SOURCE_DIR}/src/kernel/matmul.cpp"
     PROPERTIES
     COMPILE_OPTIONS "-O3;-funroll-loops;-fno-fast-math"
+)
+
+# graph
+set_source_files_properties(
+    "${CMAKE_SOURCE_DIR}/src/kernel/graph.cpp"
+    PROPERTIES
+    COMPILE_OPTIONS "-O3;-funroll-loops"
 )
 
 target_include_directories(kernels PUBLIC include)

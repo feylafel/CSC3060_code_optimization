@@ -64,11 +64,11 @@ void stu_matmul(std::vector<float>& C,
                 int jlim = std::min(jblock + jblocksz, n);
                 for (int i = iblock; i < ilim; ++i)
                 {
-                    float* cptr = &C[i * n];
+                    float* __restrict cptr = &C[i * n];
                     for (int k = kblock; k < klim; ++k)
                     {
                         float aval = A[i * n + k];
-                        const float* bptr = &B[k * n];
+                        const float* __restrict bptr = &B[k * n];
                         int j = jblock;
                         for (; j + 7 < jlim; j += 8)
                         {
