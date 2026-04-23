@@ -23,6 +23,12 @@ struct Graph {
     Node* nodes;
 };
 
+struct StuGraph {
+    int n;
+    std::vector<uint32_t> dest;
+    std::vector<uint32_t> nodepos; 
+};
+
 struct graph_args {
     Graph graph;
     std::vector<Node> nodes;
@@ -30,8 +36,7 @@ struct graph_args {
     std::uint64_t out;
     double epsilon;
     // TODO: You may want to add new params at the end...
-    std::vector<int> adj;
-    std::vector<int> nodepos;
+    StuGraph stugraph;
     explicit graph_args(double epsilon_in = 1e-6)
         : graph{0, nullptr}, out{0}, epsilon{epsilon_in} {}
 };
@@ -40,9 +45,9 @@ void naive_graph(std::uint64_t& out, const Graph& graph);
 // TODO: You may need to add a function to convert data structure (not 
 // included in time measurement), then implement your version in 
 // stu_graph, whch is called by stu_graph_wrapper.
-void convert_graph(Graph &graph, std::vector<int> &adj, std::vector<int> &nodepos);
+void convert_graph(Graph &graph, StuGraph &stugraph);
 
-void stu_graph(std::uint64_t& out, const std::vector<int> &adj, const std::vector<int> &nodepos);
+void stu_graph(std::uint64_t& out, const StuGraph &stu_graph);
 
 void naive_graph_wrapper(void* ctx);
 void stu_graph_wrapper(void* ctx);

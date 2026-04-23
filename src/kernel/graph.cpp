@@ -6,18 +6,19 @@
 #include <random>
 #include <vector>
 
-void convert_graph(Graph &graph, std::vector<int> &adj, std::vector<int> &nodepos)
+void convert_graph(Graph &graph, StuGraph &stugraph)
 {
-    nodepos.resize(graph.n + 1);
+    stugraph.n = graph.n;
+    stugraph.nodepos.resize(graph.n + 1);
     for (int u = 0; u < graph.n; ++u) {
-        nodepos[u] = adj.size();
+        stugraph.nodepos[u] = stugraph.dest.size();
         const Edge* e = graph.nodes[u].edges;
         while (e) {
-            adj.push_back(e->to);
+            stugraph.dest.push_back(e->to);
             e = e->next;
         }
     }
-    nodepos[graph.n] = adj.size();
+    stugraph.nodepos[graph.n] = stugraph.dest.size();
 }
 
 void initialize_graph(graph_args* args,
@@ -60,7 +61,7 @@ void initialize_graph(graph_args* args,
         edge_pos += static_cast<std::size_t>(avg_degree);
     }
 
-    convert_graph(args->graph, args->adj, args->nodepos);
+    convert_graph(args->graph, args->stugraph);
     args->out = 0;
 }
 
@@ -76,15 +77,36 @@ void naive_graph(std::uint64_t& out, const Graph& graph) {
     out = checksum;
 }
 
-void stu_graph(std::uint64_t& out, const std::vector<int> &adj, const std::vector<int> &nodepos) {
+void stu_graph(std::uint64_t& out, const StuGraph& stu_graph) {
     // TODO: You may need to add a function to convert data structure (not
     // included in time measurement), then implement your version in
     // stu_graph, whch is called by stu_graph_wrapper.  
-    std::uint64_t res = 0;
-    for (size_t i = 0; i < adj.size(); ++i){
-        res += static_cast<uint64_t> (adj[i]);
+    std::uint64_t res0 = 0;
+    std::uint64_t res1 = 0;
+    std::uint64_t res2 = 0;
+    std::uint64_t res3 = 0;
+    const uint32_t* __restrict nodepos = &stu_graph.nodepos[0];
+    const uint32_t* __restrict dest = &stu_graph.dest[0];
+    const int n = stu_graph.n;
+    for (int u = 0; u < n; ++u){
+        const uint32_t* r = dest + nodepos[u + 1];
+        const uint32_t* p = dest + nodepos[u];
+        for (; p + 7 < r; p += 8) {
+            // simulate eight edges u -> v, where v == p[0], p[1], until p[7]
+            res0 += p[0];
+            res1 += p[1];
+            res2 += p[2];
+            res3 += p[3];
+            res0 += p[4];
+            res1 += p[5];
+            res2 += p[6];
+            res3 += p[7];
+        }
+        for (; p < r; ++p) {
+            res0 += *p;
+        }
     }
-    out = res;
+    out = res0 + res1 + res2 + res3;
 }
 
 void naive_graph_wrapper(void* ctx) {
@@ -94,7 +116,7 @@ void naive_graph_wrapper(void* ctx) {
 
 void stu_graph_wrapper(void* ctx) {
     auto& args = *static_cast<graph_args*>(ctx);
-    stu_graph(args.out, args.adj, args.nodepos);
+    stu_graph(args.out, args.stugraph);
 }
 
 bool graph_check(void* stu_ctx, void* ref_ctx, lab_test_func naive_func) {
