@@ -51,41 +51,53 @@ void stu_matmul(std::vector<float>& C,
                 const std::vector<float>& B,
                 int n) {
     std::fill(C.begin(), C.end(), 0.0f);
-    const int blocksz = 32;
-    const int jblocksz = 64;
-    for (int iblock = 0; iblock < n; iblock += blocksz)
-    {
-        int ilim = std::min(iblock + blocksz, n);
-        for (int kblock = 0; kblock < n; kblock += blocksz)
-        {
-            int klim = std::min(kblock + blocksz, n);
-            for (int jblock = 0; jblock < n; jblock += jblocksz)
-            {
-                int jlim = std::min(jblock + jblocksz, n);
-                for (int i = iblock; i < ilim; ++i)
-                {
-                    float* __restrict cptr = &C[i * n];
-                    for (int k = kblock; k < klim; ++k)
-                    {
-                        float aval = A[i * n + k];
+    constexpr int iblocksz = 32;
+    constexpr int jblocksz = 128;
+    for (int iblock = 0; iblock < n; iblock += iblocksz) {
+        int ilim = std::min(iblock + iblocksz, n);
+        for (int jblock = 0; jblock < n; jblock += jblocksz) {
+            int jlim = std::min(jblock + jblocksz, n);
+            for (int i = iblock; i < ilim; ++i) {
+                int j8lim = jlim - 7;
+                int j = jblock;
+                float* __restrict cptr = &C[i * n];
+                const float* __restrict aptr = &A[i * n];
+                for (; j < j8lim; j += 8){
+                    float s0 = 0;
+                    float s1 = 0;
+                    float s2 = 0;
+                    float s3 = 0;
+                    float s4 = 0;
+                    float s5 = 0;
+                    float s6 = 0;
+                    float s7 = 0;
+                    for (int k = 0; k < n; ++k) {
                         const float* __restrict bptr = &B[k * n];
-                        int j = jblock;
-                        for (; j + 7 < jlim; j += 8)
-                        {
-                            cptr[j] += bptr[j] * aval;
-                            cptr[j + 1] += bptr[j + 1] * aval;
-                            cptr[j + 2] += bptr[j + 2] * aval;
-                            cptr[j + 3] += bptr[j + 3] * aval;
-                            cptr[j + 4] += bptr[j + 4] * aval;
-                            cptr[j + 5] += bptr[j + 5] * aval;
-                            cptr[j + 6] += bptr[j + 6] * aval;
-                            cptr[j + 7] += bptr[j + 7] * aval;
-                        }
-                        for (; j < jlim; ++j)
-                        {
-                            cptr[j] += bptr[j] * aval;
-                        }
+                        float aval = aptr[k];
+                        s0 += aval * bptr[j];
+                        s1 += aval * bptr[j + 1];
+                        s2 += aval * bptr[j + 2];
+                        s3 += aval * bptr[j + 3];
+                        s4 += aval * bptr[j + 4];
+                        s5 += aval * bptr[j + 5];
+                        s6 += aval * bptr[j + 6];
+                        s7 += aval * bptr[j + 7];
                     }
+                    cptr[j] += s0;
+                    cptr[j + 1] += s1;
+                    cptr[j + 2] += s2;
+                    cptr[j + 3] += s3;
+                    cptr[j + 4] += s4;
+                    cptr[j + 5] += s5;
+                    cptr[j + 6] += s6;
+                    cptr[j + 7] += s7;
+                }
+                for (; j < jlim; ++j) {
+                    float s = 0;
+                    for (int k = 0; k < n; ++k) {
+                        s += aptr[k] * B[k * n + j];
+                    }
+                    cptr[j] += s;
                 }
             }
         }

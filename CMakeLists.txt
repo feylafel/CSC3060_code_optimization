@@ -18,7 +18,7 @@ target_include_directories(kernels
 
 target_compile_options(kernels
     PRIVATE
-        -ffast-math -Wall -g -fno-omit-frame-pointer #-O2 removed
+        -O2 -ffast-math -Wall -g -fno-omit-frame-pointer #-O2 removed
 )
 
 # ---- Extra compiler flags for Bonus Tasks ----
@@ -28,15 +28,7 @@ set_source_files_properties(
     "${CMAKE_SOURCE_DIR}/src/kernel/bitwise.cpp"
     PROPERTIES
     COMPILE_OPTIONS "-O3;-mavx2;-march=native;"
-) 
-
-# matmul cpp benefits from loop unroll and O3
-set_source_files_properties(
-    "${CMAKE_SOURCE_DIR}/src/kernel/matmul.cpp"
-    PROPERTIES
-    COMPILE_OPTIONS "-O3;-funroll-loops;-fno-fast-math"
 )
-
 # graph
 set_source_files_properties(
     "${CMAKE_SOURCE_DIR}/src/kernel/graph.cpp"
