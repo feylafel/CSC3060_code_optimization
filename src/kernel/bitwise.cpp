@@ -4,6 +4,7 @@
 #include <cstring>
 #include <limits>
 #include <random>
+#include <immintrin.h>
 
 void initialize_bitwise(bitwise_args *args, const size_t size,
                         const std::uint_fast64_t seed) {
