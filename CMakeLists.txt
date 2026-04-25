@@ -18,8 +18,9 @@ target_include_directories(kernels
 
 target_compile_options(kernels
     PRIVATE
-        -O2 -ffast-math -Wall -g -fno-omit-frame-pointer
+        -ffast-math -O2 -Wall -g -fno-omit-frame-pointer
 )
+target_include_directories(kernels PUBLIC include)
 
 # ---- Executables ----
 
