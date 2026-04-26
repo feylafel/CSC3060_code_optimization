@@ -4,7 +4,6 @@
 #include <cstring>
 #include <limits>
 #include <random>
-#include <immintrin.h>
 
 void initialize_bitwise(bitwise_args *args, const size_t size,
                         const std::uint_fast64_t seed) {
@@ -54,60 +53,62 @@ void naive_bitwise(std::span<std::int8_t> result,
     }
 }
 
-// Optimized: per-byte, same mapping as naive_bitwise, expressed as
-//   out = 0xA5 ^ ((ua | ub) & 0x99)  with ua,ub taken as uint8_t bits.
-// Vectorized: OR / AND / XOR on __m128i with byte-broadcast constants.
+// Algebraic form (equivalent to naive_bitwise, uint8_t bit views):
+//   out = 0xA5 ^ ((ua | ub) & 0x99)   per element.
+// Packed std::uint64_t: 8 bytes per register; 0xA5 / 0x99 in each byte lane
+//   R = 0xA5..A5 ^ ((A | B) & 0x99..99).  std::memcpy avoids strict-aliasing
+//   issues. Layout matches a byte at a time on little-endian (Windows/Linux x86).
 void stu_bitwise(std::span<std::int8_t> result, std::span<const std::int8_t> a,
                  std::span<const std::int8_t> b) {
-    constexpr std::uint8_t kXorConst = 0xA5u;
-    constexpr std::uint8_t kAndMask = 0x99u;
+    constexpr std::uint8_t kXorB = 0xA5u;
+    constexpr std::uint8_t kAndB = 0x99u;
+    constexpr std::uint64_t kA5Q = 0xA5A5A5A5A5A5A5A5ull;
+    constexpr std::uint64_t k99Q = 0x9999999999999999ull;
 
     const std::size_t n = std::min({result.size(), a.size(), b.size()});
-    auto *out = result.data();
-    const auto *pa = a.data();
-    const auto *pb = b.data();
-
-    const __m128i cA5 = _mm_set1_epi8(static_cast<char>(kXorConst));
-    const __m128i c99 = _mm_set1_epi8(static_cast<char>(kAndMask));
+    auto *const out = result.data();
+    const auto *const pa = a.data();
+    const auto *const pb = b.data();
 
     std::size_t i = 0;
     const std::size_t n32 = n & ~std::size_t{31};
 
     for (; i < n32; i += 32) {
-        __m128i va0 =
-            _mm_loadu_si128(reinterpret_cast<const __m128i *>(pa + i));
-        __m128i vb0 =
-            _mm_loadu_si128(reinterpret_cast<const __m128i *>(pb + i));
-        __m128i va1 =
-            _mm_loadu_si128(reinterpret_cast<const __m128i *>(pa + i + 16));
-        __m128i vb1 =
-            _mm_loadu_si128(reinterpret_cast<const __m128i *>(pb + i + 16));
+        std::uint64_t a0, a1, a2, a3, b0, b1, b2, b3;
+        std::memcpy(&a0, pa + i, 8);
+        std::memcpy(&b0, pb + i, 8);
+        std::memcpy(&a1, pa + i + 8, 8);
+        std::memcpy(&b1, pb + i + 8, 8);
+        std::memcpy(&a2, pa + i + 16, 8);
+        std::memcpy(&b2, pb + i + 16, 8);
+        std::memcpy(&a3, pa + i + 24, 8);
+        std::memcpy(&b3, pb + i + 24, 8);
 
-        const __m128i either0 = _mm_or_si128(va0, vb0);
-        const __m128i out0 = _mm_xor_si128(
-            cA5, _mm_and_si128(either0, c99));
-        const __m128i either1 = _mm_or_si128(va1, vb1);
-        const __m128i out1 = _mm_xor_si128(
-            cA5, _mm_and_si128(either1, c99));
+        const std::uint64_t r0 = kA5Q ^ ((a0 | b0) & k99Q);
+        const std::uint64_t r1 = kA5Q ^ ((a1 | b1) & k99Q);
+        const std::uint64_t r2 = kA5Q ^ ((a2 | b2) & k99Q);
+        const std::uint64_t r3 = kA5Q ^ ((a3 | b3) & k99Q);
 
-        _mm_storeu_si128(reinterpret_cast<__m128i *>(out + i), out0);
-        _mm_storeu_si128(reinterpret_cast<__m128i *>(out + i + 16), out1);
+        std::memcpy(out + i, &r0, 8);
+        std::memcpy(out + i + 8, &r1, 8);
+        std::memcpy(out + i + 16, &r2, 8);
+        std::memcpy(out + i + 24, &r3, 8);
     }
 
-    const std::size_t n16 = n & ~std::size_t{15};
-    for (; i < n16; i += 16) {
-        const __m128i va = _mm_loadu_si128(reinterpret_cast<const __m128i *>(pa + i));
-        const __m128i vb = _mm_loadu_si128(reinterpret_cast<const __m128i *>(pb + i));
-        const __m128i either = _mm_or_si128(va, vb);
-        const __m128i vr = _mm_xor_si128(cA5, _mm_and_si128(either, c99));
-        _mm_storeu_si128(reinterpret_cast<__m128i *>(out + i), vr);
+    const std::size_t n8 = n & ~std::size_t{7};
+    for (; i < n8; i += 8) {
+        std::uint64_t ua, ub;
+        std::memcpy(&ua, pa + i, 8);
+        std::memcpy(&ub, pb + i, 8);
+        const std::uint64_t r = kA5Q ^ ((ua | ub) & k99Q);
+        std::memcpy(out + i, &r, 8);
     }
 
     for (; i < n; ++i) {
         const auto ua = static_cast<std::uint8_t>(pa[i]);
         const auto ub = static_cast<std::uint8_t>(pb[i]);
         out[i] = static_cast<std::int8_t>(
-            kXorConst ^ static_cast<std::uint8_t>((ua | ub) & kAndMask));
+            kXorB ^ static_cast<std::uint8_t>((ua | ub) & kAndB));
     }
 }
 
