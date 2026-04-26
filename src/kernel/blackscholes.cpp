@@ -1,104 +1,119 @@
 #include "blackscholes.h"
-#include <algorithm>
-#include <bit>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <random>
 
-#define inv_sqrt_2xPI 0.39894228040143270286f
-#define p_val 0.2316419f
-#define coefficient_a1 0.319381530f
-#define coefficient_a2 -0.356563782f
-#define coefficient_a3 1.781477937f
-#define coefficient_a4 -1.821255978f
-#define coefficient_a5 1.330274429f
+// Kept text-identical to course starter for naive / CNDF (float promotion rules).
+#define inv_sqrt_2xPI 0.39894228040143270286
+#define p_val 0.2316419
+#define coefficient_a1 0.319381530
+#define coefficient_a2 -0.356563782
+#define coefficient_a3 1.781477937
+#define coefficient_a4 -1.821255978
+#define coefficient_a5 1.330274429
 
-// ---- Student-only fast helpers (not used by naive reference) ----
+// ---- Student path: LUTs + local approximations (not used by naive) ---------
 namespace {
-// log2(1 + t) for t in [0, 0.4142] (mantissa after [1,sqrt(2)) renormalization)
-__attribute__((always_inline)) inline float
-stu_log2_1p_small(float t) {
-    // ln(1+t) via Taylor, then * (1/ln(2)) = * 1.4426950408
-    const float t2 = t * t;
-    const float t3 = t2 * t;
-    const float t4 = t3 * t;
-    const float t5 = t4 * t;
-    // ln(1+t); then log2(1+t) = ln(1+t) * (1/ln(2))
-    const float ln1p = fmaf(0.2f, t5, fmaf(-0.25f, t4, fmaf(0.333333343f, t3, fmaf(-0.5f, t2, t))));
-    return 1.4426950408f * ln1p;
-}
+constexpr int GAUSS_N = 2048; // segments in [0, GAUSS_X_MAX]
+constexpr float GAUSS_X_MAX = 10.0f;
+constexpr int LOGN = 512; // log LUT segments for ratio s/k
+constexpr float R_LO = 0.3f;
+constexpr float R_HI = 3.0f;
 
-// log2 for positive float (Abramowitz-style: exponent + log2(1+small))
-__attribute__((always_inline)) inline float stu_flog2(float x) {
-    std::uint32_t bits = std::bit_cast<std::uint32_t>(x);
-    int e = int(bits >> 23) - 127;
-    bits = (bits & 0x007fffffu) | 0x3f800000u;
-    float m = std::bit_cast<float>(bits);
-    if (m > 1.4142135f) {
-        m *= 0.5f;
-        ++e;
+static std::array<float, GAUSS_N + 1> make_gauss() {
+    std::array<float, GAUSS_N + 1> a{};
+    for (int i = 0; i <= GAUSS_N; ++i) {
+        const float x = (static_cast<float>(i) * GAUSS_X_MAX) /
+                         static_cast<float>(GAUSS_N);
+        a[static_cast<std::size_t>(i)] = std::exp(-0.5f * x * x);
     }
-    const float t = m - 1.0f;
-    return static_cast<float>(e) + stu_log2_1p_small(t);
+    return a;
 }
 
-// 2^f = exp(f ln 2), f in [0, 1) → g in [0, ln 2] ⊂ [0, 0.7]
-__attribute__((always_inline)) inline float stu_pow2f_frac(float f) {
-    const float g = f * 0.69314718056f;
-    const float g2 = g * g;
-    const float g3 = g2 * g;
-    const float g4 = g3 * g;
-    const float g5 = g4 * g;
-    const float g6 = g5 * g;
-    const float g7 = g6 * g;
-    return 1.0f + g + 0.5f * g2 + g3 * (1.0f / 6.0f) + g4 * (1.0f / 24.0f) +
-           g5 * (1.0f / 120.0f) + g6 * (1.0f / 720.0f) + g7 * (1.0f / 5040.0f);
+static std::array<float, LOGN + 1> make_lograt() {
+    std::array<float, LOGN + 1> a{};
+    for (int i = 0; i <= LOGN; ++i) {
+        const float r =
+            R_LO + (R_HI - R_LO) * (static_cast<float>(i) / static_cast<float>(LOGN));
+        a[static_cast<std::size_t>(i)] = std::log(r);
+    }
+    return a;
 }
 
-// 2^a, full range (replaces std::exp without libm in hot path; ldexpf applies exact power-of-2)
-__attribute__((always_inline)) inline float stu_fexp2(float a) {
-    if (a <= -150.f) {
+static const std::array<float, GAUSS_N + 1> kGaussLut = make_gauss();
+static const std::array<float, LOGN + 1> kLogRatLut = make_lograt();
+
+__attribute__((always_inline)) inline float gauss_nprime_lerp(float x) {
+    if (x >= GAUSS_X_MAX) {
         return 0.0f;
     }
-    if (a >= 128.f) {
-        return 0x1.fffffep+127f;
+    const float s = (x / GAUSS_X_MAX) * static_cast<float>(GAUSS_N);
+    int i = static_cast<int>(s);
+    if (i < 0) {
+        i = 0;
     }
-    const float fl = std::floor(a);
-    const int n = static_cast<int>(fl);
-    const float f = a - fl;
-    const float p = stu_pow2f_frac(f);
-    return std::ldexpf(p, n);
+    if (i >= GAUSS_N) {
+        return 0.0f;
+    }
+    const float f = s - static_cast<float>(i);
+    const float g0 = kGaussLut[static_cast<std::size_t>(i)];
+    const float g1 = kGaussLut[static_cast<std::size_t>(i) + 1U];
+    return fmaf(f, g1 - g0, g0);
 }
 
-// exp(x) = exp2(x * log2(e))
-__attribute__((always_inline)) inline float stu_fexp(float x) {
-    return stu_fexp2(x * 1.44269504088896f);
+// log(s/k) for ratio in a tight band: LUT; otherwise fall back to libm
+__attribute__((always_inline)) inline float log_ratio_stu(float ratio) {
+    if (ratio < R_LO || ratio > R_HI) {
+        return std::log(ratio);
+    }
+    const float t =
+        (ratio - R_LO) / (R_HI - R_LO) * static_cast<float>(LOGN);
+    int i = static_cast<int>(t);
+    if (i < 0) {
+        i = 0;
+    }
+    if (i >= LOGN) {
+        return kLogRatLut[static_cast<std::size_t>(LOGN)];
+    }
+    const float f = t - static_cast<float>(i);
+    const float y0 = kLogRatLut[static_cast<std::size_t>(i)];
+    const float y1 = kLogRatLut[static_cast<std::size_t>(i) + 1U];
+    return fmaf(f, y1 - y0, y0);
 }
 
-// t ∈ [0.1,1] for this task — one lib sqrt is still cheap vs exp/log; keeps numerics
-__attribute__((always_inline)) inline float stu_fsqrt(float x) { return std::sqrt(x); }
+// exp(-r t) with u = -r t ∈ [-0.1,0]; 7th-order Taylor (no lib expf on hot path)
+__attribute__((always_inline)) inline float exp_neg_rt(float r, float t) {
+    const float u = -(r) * t;
+    const float u2 = u * u;
+    const float u3 = u2 * u;
+    const float u4 = u3 * u;
+    const float u5 = u4 * u;
+    const float u6 = u5 * u;
+    const float u7 = u6 * u;
+    return 1.0f + u + 0.5f * u2 + (1.0f / 6.0f) * u3 + (1.0f / 24.0f) * u4 +
+           (1.0f / 120.0f) * u5 + (1.0f / 720.0f) * u6 + (1.0f / 5040.0f) * u7;
+}
 
-// Cumulative normal (same structure as reference CNDF, student intrinsics for exp)
-__attribute__((always_inline)) inline float
-stu_cndf_scalar(float input_x) {
+__attribute__((always_inline)) inline float stu_cndf(float input_x) {
     int sign = 0;
     float x = input_x;
     if (x < 0.0f) {
         x = -x;
         sign = 1;
     }
-    const float xNPrimeofX = stu_fexp(-0.5f * x * x) * inv_sqrt_2xPI;
-    const float k = 1.0f / (1.0f + p_val * x);
+    const float xNPrimeofX = gauss_nprime_lerp(x) * static_cast<float>(inv_sqrt_2xPI);
+    const float k = 1.0f / (1.0f + static_cast<float>(p_val) * x);
     const float k_2 = k * k;
     const float k_3 = k_2 * k;
     const float k_4 = k_3 * k;
     const float k_5 = k_4 * k;
-    float local = k * coefficient_a1;
-    local = fmaf(k_2, coefficient_a2, local);
-    local = fmaf(k_3, coefficient_a3, local);
-    local = fmaf(k_4, coefficient_a4, local);
-    local = fmaf(k_5, coefficient_a5, local);
+    float local = k * static_cast<float>(coefficient_a1);
+    local += k_2 * static_cast<float>(coefficient_a2);
+    local += k_3 * static_cast<float>(coefficient_a3);
+    local += k_4 * static_cast<float>(coefficient_a4);
+    local += k_5 * static_cast<float>(coefficient_a5);
     local = 1.0f - local * xNPrimeofX;
     return sign ? (1.0f - local) : local;
 }
@@ -226,32 +241,60 @@ void stu_BlkSchls(std::vector<float> &CallOptionPrice,
     float *const __restrict__ call = CallOptionPrice.data();
     float *const __restrict__ puto = PutOptionPrice.data();
 
-    const float ln2 = 0.69314718056f;
+    size_t i = 0;
+    for (; i + 3 < n; i += 4) {
+#if defined(__GNUC__) && !defined(__NuttX__)
+        __builtin_prefetch(&sp[i + 8], 0, 1);
+        __builtin_prefetch(&st[i + 8], 0, 1);
+        __builtin_prefetch(&ra[i + 8], 0, 1);
+        __builtin_prefetch(&vo[i + 8], 0, 1);
+        __builtin_prefetch(&ti[i + 8], 0, 1);
+#endif
+        for (int j = 0; j < 4; ++j) {
+            const size_t k = i + static_cast<std::size_t>(j);
+            const float s = sp[k];
+            const float k_strike = st[k];
+            const float r = ra[k];
+            const float v = vo[k];
+            const float t = ti[k];
 
-    for (size_t i = 0; i < n; ++i) {
+            const float xSqrtTime = std::sqrt(t);
+            const float xLogTerm = log_ratio_stu(s / k_strike);
+            const float xPowerTerm = 0.5f * v * v;
+            float xD1 = (r + xPowerTerm) * t + xLogTerm;
+            const float xDen = v * xSqrtTime;
+            xD1 = xD1 / xDen;
+            const float xD2 = xD1 - xDen;
+
+            const float N1 = stu_cndf(xD1);
+            const float N2 = stu_cndf(xD2);
+            const float fv = k_strike * exp_neg_rt(r, t);
+            const float c = (s * N1) - (fv * N2);
+            const float p = (fv * (1.0f - N2)) - (s * (1.0f - N1));
+            call[k] = c;
+            puto[k] = p;
+        }
+    }
+    for (; i < n; ++i) {
         const float s = sp[i];
         const float k_strike = st[i];
         const float r = ra[i];
         const float v = vo[i];
         const float t = ti[i];
 
-        const float xSqrtTime = stu_fsqrt(t);
-        const float xLogTerm = stu_flog2(s / k_strike) * ln2;
+        const float xSqrtTime = std::sqrt(t);
+        const float xLogTerm = log_ratio_stu(s / k_strike);
         const float xPowerTerm = 0.5f * v * v;
-
         float xD1 = (r + xPowerTerm) * t + xLogTerm;
         const float xDen = v * xSqrtTime;
         xD1 = xD1 / xDen;
         const float xD2 = xD1 - xDen;
 
-        const float NofXd1 = stu_cndf_scalar(xD1);
-        const float NofXd2 = stu_cndf_scalar(xD2);
-        const float FutureValueX = k_strike * stu_fexp(-(r) * t);
-
-        const float c = (s * NofXd1) - (FutureValueX * NofXd2);
-        const float NegNofXd1 = 1.0f - NofXd1;
-        const float NegNofXd2 = 1.0f - NofXd2;
-        const float p = (FutureValueX * NegNofXd2) - (s * NegNofXd1);
+        const float N1 = stu_cndf(xD1);
+        const float N2 = stu_cndf(xD2);
+        const float fv = k_strike * exp_neg_rt(r, t);
+        const float c = (s * N1) - (fv * N2);
+        const float p = (fv * (1.0f - N2)) - (s * (1.0f - N1));
         call[i] = c;
         puto[i] = p;
     }
