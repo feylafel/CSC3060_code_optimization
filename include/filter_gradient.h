@@ -21,25 +21,27 @@ struct data_struct {
     std::vector<float> i;
 };
 
-// Optimized context for filter_gradient
-struct filter_gradient_opt_ctx {
-    const float* a = nullptr; const float* b = nullptr; const float* c = nullptr;
-    const float* d = nullptr; const float* e = nullptr; const float* f = nullptr;
-    const float* g = nullptr; const float* h = nullptr; const float* i = nullptr;
-    std::size_t width = 0;
-    std::size_t height = 0;
+// Grouped SoA (v3): three streams with (a,b,c) | (d,e,f) | (g,h,i) interleaved
+// per pixel in row-major order. For linear pixel index k: channel triple at
+// [3k+0],[3k+1],[3k+2]. alignas(64) aligns the struct; heap buffers use
+// 16+ byte alignment in practice for float vectors on this platform, which
+// helps cache-line and SIMD-friendly 12-byte groups.
+struct alignas(64) filter_gradient_grouped {
+    std::vector<float> abc;
+    std::vector<float> def;
+    std::vector<float> ghi;
 };
 
 struct filter_gradient_args {
     data_struct data; 
     // TODO: You may want to add new params at the end...
 
-    
+
     std::size_t width;
     std::size_t height;
     float out;
     double epsilon;
-    filter_gradient_opt_ctx opt;
+    filter_gradient_grouped grouped;
 
     explicit filter_gradient_args(double epsilon_in = 1e-6)
         : width(0), height(0), out(0.0f), epsilon(epsilon_in) {}
@@ -48,11 +50,11 @@ struct filter_gradient_args {
 // TODO: You may need to add a function to convert data structure (not 
 // included in time measurement), then implement your version in 
 // stu_filter_gradient, whch is called by stu_filter_gradient_wrapper.
-void build_filter_gradient_opt_ctx(filter_gradient_args* args);
+void convert_filter_gradient_data_to_grouped(filter_gradient_args* args);
 
 void naive_filter_gradient(float& out, const data_struct& data,
                    std::size_t width, std::size_t height);
-void stu_filter_gradient(float& out, const data_struct& data,
+void stu_filter_gradient(float& out, const filter_gradient_grouped& g,
                    std::size_t width, std::size_t height);
 
 void naive_filter_gradient_wrapper(void* ctx);

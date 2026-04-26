@@ -6,6 +6,36 @@
 #include <cstdint>
 #include <random>
 
+void convert_filter_gradient_data_to_grouped(filter_gradient_args* args) {
+    if (!args) {
+        return;
+    }
+    const std::size_t n = args->width * args->height;
+    if (n == 0) {
+        return;
+    }
+    const std::size_t t = 3 * n;
+    data_struct& d = args->data;
+    filter_gradient_grouped& g = args->grouped;
+
+    g.abc.resize(t);
+    g.def.resize(t);
+    g.ghi.resize(t);
+
+    for (std::size_t k = 0; k < n; ++k) {
+        const std::size_t b = 3 * k;
+        g.abc[b + 0] = d.a[k];
+        g.abc[b + 1] = d.b[k];
+        g.abc[b + 2] = d.c[k];
+        g.def[b + 0] = d.d[k];
+        g.def[b + 1] = d.e[k];
+        g.def[b + 2] = d.f[k];
+        g.ghi[b + 0] = d.g[k];
+        g.ghi[b + 1] = d.h[k];
+        g.ghi[b + 2] = d.i[k];
+    }
+}
+
 void initialize_filter_gradient(filter_gradient_args* args,
                         std::size_t width,
                         std::size_t height,
@@ -47,16 +77,8 @@ void initialize_filter_gradient(filter_gradient_args* args,
         args->data.h[k] = dist(gen);
         args->data.i[k] = dist(gen);
     }
-    build_filter_gradient_opt_ctx(args);
-}
-  
-void build_filter_gradient_opt_ctx(filter_gradient_args* args) {
-    if (!args) return;
-    args->opt.a = args->data.a.data(); args->opt.b = args->data.b.data(); args->opt.c = args->data.c.data();
-    args->opt.d = args->data.d.data(); args->opt.e = args->data.e.data(); args->opt.f = args->data.f.data();
-    args->opt.g = args->data.g.data(); args->opt.h = args->data.h.data(); args->opt.i = args->data.i.data();
-    args->opt.width = args->width;
-    args->opt.height = args->height;
+    // Conversion is not part of the timed stu kernel (runs in init, beforeenchmarks).
+    convert_filter_gradient_data_to_grouped(args);
 }
 
 void naive_filter_gradient(float& out, const data_struct& data,
@@ -131,14 +153,18 @@ void naive_filter_gradient(float& out, const data_struct& data,
     out = total;
 }
 
-void stu_filter_gradient(float& out, const data_struct& data,
+void stu_filter_gradient(float& out, const filter_gradient_grouped& g,
                    std::size_t width, std::size_t height) {
-    // TODO: You may need to add a function to convert data structure (not 
-    // included in time measurement), then implement your version in 
+    // TODO: You may need to add a function to convert data structure (not
+    // included in time measurement), then implement your version in
     // stu_filter_gradient, whch is called by stu_filter_gradient_wrapper.
     const std::size_t W = width;
     const std::size_t H = height;
     constexpr float inv9 = 1.0f / 9.0f;
+
+    const float* const abc = g.abc.data();
+    const float* const def = g.def.data();
+    const float* const ghi = g.ghi.data();
 
     double total = 0.0;
 
@@ -147,80 +173,76 @@ void stu_filter_gradient(float& out, const data_struct& data,
         const std::size_t y0 = y;
         const std::size_t yp1 = y + 1;
 
-        const float* a_m1 = data.a.data() + ym1 * W;
-        const float* a_0 = data.a.data() + y0 * W;
-        const float* a_p1 = data.a.data() + yp1 * W;
-        const float* b_m1 = data.b.data() + ym1 * W;
-        const float* b_0 = data.b.data() + y0 * W;
-        const float* b_p1 = data.b.data() + yp1 * W;
-        const float* c_m1 = data.c.data() + ym1 * W;
-        const float* c_0 = data.c.data() + y0 * W;
-        const float* c_p1 = data.c.data() + yp1 * W;
+        const std::size_t o_m1 = 3 * (ym1 * W);
+        const std::size_t o_0 = 3 * (y0 * W);
+        const std::size_t o_p1 = 3 * (yp1 * W);
 
-        const float* d_m1 = data.d.data() + ym1 * W;
-        const float* d_0 = data.d.data() + y0 * W;
-        const float* d_p1 = data.d.data() + yp1 * W;
-        const float* e_m1 = data.e.data() + ym1 * W;
-        const float* e_0 = data.e.data() + y0 * W;
-        const float* e_p1 = data.e.data() + yp1 * W;
-        const float* f_m1 = data.f.data() + ym1 * W;
-        const float* f_0 = data.f.data() + y0 * W;
-        const float* f_p1 = data.f.data() + yp1 * W;
+        const float* abc_m1 = abc + o_m1;
+        const float* abc_0 = abc + o_0;
+        const float* abc_p1 = abc + o_p1;
 
-        const float* g_m1 = data.g.data() + ym1 * W;
-        const float* g_p1 = data.g.data() + yp1 * W;
-        const float* h_m1 = data.h.data() + ym1 * W;
-        const float* h_p1 = data.h.data() + yp1 * W;
-        const float* i_m1 = data.i.data() + ym1 * W;
-        const float* i_p1 = data.i.data() + yp1 * W;
+        const float* def_m1 = def + o_m1;
+        const float* def_0 = def + o_0;
+        const float* def_p1 = def + o_p1;
 
-        // 3x3 box sums for a/b/c: full 3x3 at x==1, then slide by removing the
-        // left column and adding the new right column as x increases.
-        float sum_a = a_m1[0] + a_m1[1] + a_m1[2] + a_0[0] + a_0[1] + a_0[2] +
-                      a_p1[0] + a_p1[1] + a_p1[2];
-        float sum_b = b_m1[0] + b_m1[1] + b_m1[2] + b_0[0] + b_0[1] + b_0[2] +
-                      b_p1[0] + b_p1[1] + b_p1[2];
-        float sum_c = c_m1[0] + c_m1[1] + c_m1[2] + c_0[0] + c_0[1] + c_0[2] +
-                      c_p1[0] + c_p1[1] + c_p1[2];
+        const float* ghi_m1 = ghi + o_m1;
+        const float* ghi_p1 = ghi + o_p1;
+
+        // 3x3 box on a,b,c: sliding x on grouped stream; a at 3*col+0, b +1, c +2.
+        float sum_a = abc_m1[0] + abc_m1[3] + abc_m1[6] + abc_0[0] + abc_0[3] +
+                      abc_0[6] + abc_p1[0] + abc_p1[3] + abc_p1[6];
+        float sum_b = abc_m1[1] + abc_m1[4] + abc_m1[7] + abc_0[1] + abc_0[4] +
+                      abc_0[7] + abc_p1[1] + abc_p1[4] + abc_p1[7];
+        float sum_c = abc_m1[2] + abc_m1[5] + abc_m1[8] + abc_0[2] + abc_0[5] +
+                      abc_0[8] + abc_p1[2] + abc_p1[5] + abc_p1[8];
 
         for (std::size_t x = 1; x + 1 < W; ++x) {
             if (x > 1) {
                 const std::size_t c_out = x - 2;
                 const std::size_t c_in = x + 1;
-                sum_a += -a_m1[c_out] - a_0[c_out] - a_p1[c_out] + a_m1[c_in] +
-                         a_0[c_in] + a_p1[c_in];
-                sum_b += -b_m1[c_out] - b_0[c_out] - b_p1[c_out] + b_m1[c_in] +
-                         b_0[c_in] + b_p1[c_in];
-                sum_c += -c_m1[c_out] - c_0[c_out] - c_p1[c_out] + c_m1[c_in] +
-                         c_0[c_in] + c_p1[c_in];
+                const std::size_t o_out = 3 * c_out;
+                const std::size_t o_in = 3 * c_in;
+                sum_a += -abc_m1[o_out] - abc_0[o_out] - abc_p1[o_out] + abc_m1[o_in] +
+                         abc_0[o_in] + abc_p1[o_in];
+                sum_b += -abc_m1[o_out + 1] - abc_0[o_out + 1] - abc_p1[o_out + 1] +
+                         abc_m1[o_in + 1] + abc_0[o_in + 1] + abc_p1[o_in + 1];
+                sum_c += -abc_m1[o_out + 2] - abc_0[o_out + 2] - abc_p1[o_out + 2] +
+                         abc_m1[o_in + 2] + abc_0[o_in + 2] + abc_p1[o_in + 2];
             }
 
             const std::size_t xm1 = x - 1;
             const std::size_t x0 = x;
             const std::size_t xp1 = x + 1;
 
+            const std::size_t jm1 = 3 * xm1;
+            const std::size_t j0 = 3 * x0;
+            const std::size_t jp1 = 3 * xp1;
+
             const float avg_a = sum_a * inv9;
             const float avg_b = sum_b * inv9;
             const float avg_c = sum_c * inv9;
             const float p1 = avg_a * avg_b + avg_c;
 
-            const float sobel_dx = -d_m1[xm1] + d_m1[xp1] -
-                                   2.0f * d_0[xm1] + 2.0f * d_0[xp1] -
-                                   d_p1[xm1] + d_p1[xp1];
-            const float sobel_ex = -e_m1[xm1] + e_m1[xp1] -
-                                   2.0f * e_0[xm1] + 2.0f * e_0[xp1] -
-                                   e_p1[xm1] + e_p1[xp1];
-            const float sobel_fx = -f_m1[xm1] + f_m1[xp1] -
-                                   2.0f * f_0[xm1] + 2.0f * f_0[xp1] -
-                                   f_p1[xm1] + f_p1[xp1];
+            const float sobel_dx =
+                -def_m1[jm1 + 0] + def_m1[jp1 + 0] - 2.0f * def_0[jm1 + 0] +
+                2.0f * def_0[jp1 + 0] - def_p1[jm1 + 0] + def_p1[jp1 + 0];
+            const float sobel_ex =
+                -def_m1[jm1 + 1] + def_m1[jp1 + 1] - 2.0f * def_0[jm1 + 1] +
+                2.0f * def_0[jp1 + 1] - def_p1[jm1 + 1] + def_p1[jp1 + 1];
+            const float sobel_fx =
+                -def_m1[jm1 + 2] + def_m1[jp1 + 2] - 2.0f * def_0[jm1 + 2] +
+                2.0f * def_0[jp1 + 2] - def_p1[jm1 + 2] + def_p1[jp1 + 2];
             const float p2 = sobel_dx * sobel_ex + sobel_fx;
 
-            const float sobel_gy = -g_m1[xm1] - 2.0f * g_m1[x0] - g_m1[xp1] +
-                                   g_p1[xm1] + 2.0f * g_p1[x0] + g_p1[xp1];
-            const float sobel_hy = -h_m1[xm1] - 2.0f * h_m1[x0] - h_m1[xp1] +
-                                   h_p1[xm1] + 2.0f * h_p1[x0] + h_p1[xp1];
-            const float sobel_iy = -i_m1[xm1] - 2.0f * i_m1[x0] - i_m1[xp1] +
-                                   i_p1[xm1] + 2.0f * i_p1[x0] + i_p1[xp1];
+            const float sobel_gy = -ghi_m1[jm1 + 0] - 2.0f * ghi_m1[j0 + 0] -
+                                   ghi_m1[jp1 + 0] + ghi_p1[jm1 + 0] +
+                                   2.0f * ghi_p1[j0 + 0] + ghi_p1[jp1 + 0];
+            const float sobel_hy = -ghi_m1[jm1 + 1] - 2.0f * ghi_m1[j0 + 1] -
+                                   ghi_m1[jp1 + 1] + ghi_p1[jm1 + 1] +
+                                   2.0f * ghi_p1[j0 + 1] + ghi_p1[jp1 + 1];
+            const float sobel_iy = -ghi_m1[jm1 + 2] - 2.0f * ghi_m1[j0 + 2] -
+                                   ghi_m1[jp1 + 2] + ghi_p1[jm1 + 2] +
+                                   2.0f * ghi_p1[j0 + 2] + ghi_p1[jp1 + 2];
             const float p3 = sobel_gy * sobel_hy + sobel_iy;
 
             total += static_cast<double>(p1 + p2 + p3);
@@ -238,7 +260,7 @@ void naive_filter_gradient_wrapper(void* ctx) {
 void stu_filter_gradient_wrapper(void* ctx) {
     auto& args = *static_cast<filter_gradient_args*>(ctx);
     args.out = 0.0f;
-    stu_filter_gradient(args.out, args.data, args.width, args.height);
+    stu_filter_gradient(args.out, args.grouped, args.width, args.height);
 }
 
 bool filter_gradient_check(void* stu_ctx, void* ref_ctx, lab_test_func naive_func) {
