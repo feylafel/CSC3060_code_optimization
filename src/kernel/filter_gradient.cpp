@@ -168,13 +168,13 @@ void stu_filter_gradient(float& out, const data_struct& data,
         const float* f_p1 = data.f.data() + yp1 * W;
 
         const float* g_m1 = data.g.data() + ym1 * W;
-        const float* g_0 = data.g.data() + y0 * W;
+        // const float* g_0 = data.g.data() + y0 * W;
         const float* g_p1 = data.g.data() + yp1 * W;
         const float* h_m1 = data.h.data() + ym1 * W;
-        const float* h_0 = data.h.data() + y0 * W;
+       // const float* h_0 = data.h.data() + y0 * W;
         const float* h_p1 = data.h.data() + yp1 * W;
         const float* i_m1 = data.i.data() + ym1 * W;
-        const float* i_0 = data.i.data() + y0 * W;
+        // const float* i_0 = data.i.data() + y0 * W;
         const float* i_p1 = data.i.data() + yp1 * W;
 
         for (std::size_t x = 1; x + 1 < W; ++x) {
