@@ -54,25 +54,24 @@ void naive_bitwise(std::span<std::int8_t> result,
     }
 }
 
-// TODO: Optimize the bitwise function
+// Optimized: per-byte, same mapping as naive_bitwise, expressed as
+//   out = 0xA5 ^ ((ua | ub) & 0x99)  with ua,ub taken as uint8_t bits.
+// Vectorized: OR / AND / XOR on __m128i with byte-broadcast constants.
 void stu_bitwise(std::span<std::int8_t> result, std::span<const std::int8_t> a,
                  std::span<const std::int8_t> b) {
-    constexpr std::uint8_t kMaskLo = 0x5Au;
-    constexpr std::uint8_t kMaskHi = 0xC3u;
+    constexpr std::uint8_t kXorConst = 0xA5u;
+    constexpr std::uint8_t kAndMask = 0x99u;
 
     const std::size_t n = std::min({result.size(), a.size(), b.size()});
     auto *out = result.data();
     const auto *pa = a.data();
     const auto *pb = b.data();
 
-    const __m128i mlo = _mm_set1_epi8(static_cast<char>(kMaskLo));
-    const __m128i mhi = _mm_set1_epi8(static_cast<char>(kMaskHi));
-    const __m128i ones = _mm_set1_epi8(static_cast<char>(0xFF));
-    const __m128i not_mlo = _mm_xor_si128(mlo, ones);
-    const __m128i not_mhi = _mm_xor_si128(mhi, ones);
+    const __m128i cA5 = _mm_set1_epi8(static_cast<char>(kXorConst));
+    const __m128i c99 = _mm_set1_epi8(static_cast<char>(kAndMask));
 
     std::size_t i = 0;
-    const std::size_t n32 = n & ~std::size_t{31}; // 32-byte unroll (2 x 16)
+    const std::size_t n32 = n & ~std::size_t{31};
 
     for (; i < n32; i += 32) {
         __m128i va0 =
@@ -84,29 +83,12 @@ void stu_bitwise(std::span<std::int8_t> result, std::span<const std::int8_t> a,
         __m128i vb1 =
             _mm_loadu_si128(reinterpret_cast<const __m128i *>(pb + i + 16));
 
-        // lane 0
-        __m128i shared0 = _mm_and_si128(va0, vb0);
-        __m128i either0 = _mm_or_si128(va0, vb0);
-        __m128i diff0 = _mm_xor_si128(va0, vb0);
-        __m128i mixed00 = _mm_or_si128(_mm_and_si128(diff0, mlo),
-                                       _mm_andnot_si128(shared0, not_mlo));
-        __m128i mixed10 =
-            _mm_xor_si128(_mm_and_si128(_mm_xor_si128(either0, mhi),
-                                        _mm_or_si128(shared0, not_mhi)),
-                          diff0);
-        __m128i out0 = _mm_xor_si128(mixed00, mixed10);
-
-        // lane 1
-        __m128i shared1 = _mm_and_si128(va1, vb1);
-        __m128i either1 = _mm_or_si128(va1, vb1);
-        __m128i diff1 = _mm_xor_si128(va1, vb1);
-        __m128i mixed01 = _mm_or_si128(_mm_and_si128(diff1, mlo),
-                                       _mm_andnot_si128(shared1, not_mlo));
-        __m128i mixed11 =
-            _mm_xor_si128(_mm_and_si128(_mm_xor_si128(either1, mhi),
-                                        _mm_or_si128(shared1, not_mhi)),
-                          diff1);
-        __m128i out1 = _mm_xor_si128(mixed01, mixed11);
+        const __m128i either0 = _mm_or_si128(va0, vb0);
+        const __m128i out0 = _mm_xor_si128(
+            cA5, _mm_and_si128(either0, c99));
+        const __m128i either1 = _mm_or_si128(va1, vb1);
+        const __m128i out1 = _mm_xor_si128(
+            cA5, _mm_and_si128(either1, c99));
 
         _mm_storeu_si128(reinterpret_cast<__m128i *>(out + i), out0);
         _mm_storeu_si128(reinterpret_cast<__m128i *>(out + i + 16), out1);
@@ -114,38 +96,18 @@ void stu_bitwise(std::span<std::int8_t> result, std::span<const std::int8_t> a,
 
     const std::size_t n16 = n & ~std::size_t{15};
     for (; i < n16; i += 16) {
-        __m128i va = _mm_loadu_si128(reinterpret_cast<const __m128i *>(pa + i));
-        __m128i vb = _mm_loadu_si128(reinterpret_cast<const __m128i *>(pb + i));
-
-        __m128i shared = _mm_and_si128(va, vb);
-        __m128i either = _mm_or_si128(va, vb);
-        __m128i diff = _mm_xor_si128(va, vb);
-
-        __m128i mixed0 = _mm_or_si128(_mm_and_si128(diff, mlo),
-                                      _mm_andnot_si128(shared, not_mlo));
-        __m128i mixed1 =
-            _mm_xor_si128(_mm_and_si128(_mm_xor_si128(either, mhi),
-                                        _mm_or_si128(shared, not_mhi)),
-                          diff);
-
-        __m128i vr = _mm_xor_si128(mixed0, mixed1);
+        const __m128i va = _mm_loadu_si128(reinterpret_cast<const __m128i *>(pa + i));
+        const __m128i vb = _mm_loadu_si128(reinterpret_cast<const __m128i *>(pb + i));
+        const __m128i either = _mm_or_si128(va, vb);
+        const __m128i vr = _mm_xor_si128(cA5, _mm_and_si128(either, c99));
         _mm_storeu_si128(reinterpret_cast<__m128i *>(out + i), vr);
     }
 
-    // tail
     for (; i < n; ++i) {
         const auto ua = static_cast<std::uint8_t>(pa[i]);
         const auto ub = static_cast<std::uint8_t>(pb[i]);
-
-        const auto shared = static_cast<std::uint8_t>(ua & ub);
-        const auto either = static_cast<std::uint8_t>(ua | ub);
-        const auto diff = static_cast<std::uint8_t>(ua ^ ub);
-        const auto mixed0 =
-            static_cast<std::uint8_t>((diff & kMaskLo) | (~shared & ~kMaskLo));
-        const auto mixed1 = static_cast<std::uint8_t>(
-            ((either ^ kMaskHi) & (shared | ~kMaskHi)) ^ diff);
-
-        out[i] = static_cast<std::int8_t>(mixed0 ^ mixed1);
+        out[i] = static_cast<std::int8_t>(
+            kXorConst ^ static_cast<std::uint8_t>((ua | ub) & kAndMask));
     }
 }
 
