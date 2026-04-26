@@ -168,29 +168,36 @@ void stu_filter_gradient(float& out, const data_struct& data,
         const float* f_p1 = data.f.data() + yp1 * W;
 
         const float* g_m1 = data.g.data() + ym1 * W;
-        // const float* g_0 = data.g.data() + y0 * W;
         const float* g_p1 = data.g.data() + yp1 * W;
         const float* h_m1 = data.h.data() + ym1 * W;
-       // const float* h_0 = data.h.data() + y0 * W;
         const float* h_p1 = data.h.data() + yp1 * W;
         const float* i_m1 = data.i.data() + ym1 * W;
-        // const float* i_0 = data.i.data() + y0 * W;
         const float* i_p1 = data.i.data() + yp1 * W;
 
+        // 3x3 box sums for a/b/c: full 3x3 at x==1, then slide by removing the
+        // left column and adding the new right column as x increases.
+        float sum_a = a_m1[0] + a_m1[1] + a_m1[2] + a_0[0] + a_0[1] + a_0[2] +
+                      a_p1[0] + a_p1[1] + a_p1[2];
+        float sum_b = b_m1[0] + b_m1[1] + b_m1[2] + b_0[0] + b_0[1] + b_0[2] +
+                      b_p1[0] + b_p1[1] + b_p1[2];
+        float sum_c = c_m1[0] + c_m1[1] + c_m1[2] + c_0[0] + c_0[1] + c_0[2] +
+                      c_p1[0] + c_p1[1] + c_p1[2];
+
         for (std::size_t x = 1; x + 1 < W; ++x) {
+            if (x > 1) {
+                const std::size_t c_out = x - 2;
+                const std::size_t c_in = x + 1;
+                sum_a += -a_m1[c_out] - a_0[c_out] - a_p1[c_out] + a_m1[c_in] +
+                         a_0[c_in] + a_p1[c_in];
+                sum_b += -b_m1[c_out] - b_0[c_out] - b_p1[c_out] + b_m1[c_in] +
+                         b_0[c_in] + b_p1[c_in];
+                sum_c += -c_m1[c_out] - c_0[c_out] - c_p1[c_out] + c_m1[c_in] +
+                         c_0[c_in] + c_p1[c_in];
+            }
+
             const std::size_t xm1 = x - 1;
             const std::size_t x0 = x;
             const std::size_t xp1 = x + 1;
-
-            const float sum_a = a_m1[xm1] + a_m1[x0] + a_m1[xp1] +
-                                a_0[xm1] + a_0[x0] + a_0[xp1] +
-                                a_p1[xm1] + a_p1[x0] + a_p1[xp1];
-            const float sum_b = b_m1[xm1] + b_m1[x0] + b_m1[xp1] +
-                                b_0[xm1] + b_0[x0] + b_0[xp1] +
-                                b_p1[xm1] + b_p1[x0] + b_p1[xp1];
-            const float sum_c = c_m1[xm1] + c_m1[x0] + c_m1[xp1] +
-                                c_0[xm1] + c_0[x0] + c_0[xp1] +
-                                c_p1[xm1] + c_p1[x0] + c_p1[xp1];
 
             const float avg_a = sum_a * inv9;
             const float avg_b = sum_b * inv9;
