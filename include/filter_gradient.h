@@ -50,8 +50,6 @@ struct filter_gradient_args {
 // stu_filter_gradient, whch is called by stu_filter_gradient_wrapper.
 void build_filter_gradient_opt_ctx(filter_gradient_args* args);
 
-void stu_filter_gradient_opt(float& out, const filter_gradient_opt_ctx& opt);
-
 void naive_filter_gradient(float& out, const data_struct& data,
                    std::size_t width, std::size_t height);
 void stu_filter_gradient(float& out, const data_struct& data,
