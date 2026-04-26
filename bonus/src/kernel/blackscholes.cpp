@@ -13,6 +13,33 @@
 #define coefficient_a4 -1.821255978
 #define coefficient_a5 1.330274429
 
+// Single CDF path used by the naive reference and the optimized student kernel.
+static inline float cndf_scalar(float input_x) {
+    int sign = 0;
+    float x = input_x;
+
+    if (x < 0.0f) {
+        x = -x;
+        sign = 1;
+    }
+
+    const float xNPrimeofX = std::exp(-0.5f * x * x) * inv_sqrt_2xPI;
+    const float k = 1.0f / (1.0f + p_val * x);
+    const float k_2 = k * k;
+    const float k_3 = k_2 * k;
+    const float k_4 = k_3 * k;
+    const float k_5 = k_4 * k;
+
+    float local = k * coefficient_a1;
+    local += k_2 * coefficient_a2;
+    local += k_3 * coefficient_a3;
+    local += k_4 * coefficient_a4;
+    local += k_5 * coefficient_a5;
+    local = 1.0f - local * xNPrimeofX;
+
+    return sign ? (1.0f - local) : local;
+}
+
 void initialize_blackscholes(blackscholes_args &args,
                              std::size_t n,
                              std::uint32_t seed) {
@@ -42,31 +69,7 @@ void initialize_blackscholes(blackscholes_args &args,
     }
 }
 
-void CNDF(float &InputX, float &OutputX) {
-    int sign = 0;
-    float x = InputX;
-
-    if (x < 0.0f) {
-        x = -x;
-        sign = 1;
-    }
-
-    const float xNPrimeofX = std::exp(-0.5f * x * x) * inv_sqrt_2xPI;
-    const float k = 1.0f / (1.0f + p_val * x);
-    const float k_2 = k * k;
-    const float k_3 = k_2 * k;
-    const float k_4 = k_3 * k;
-    const float k_5 = k_4 * k;
-
-    float local = k * coefficient_a1;
-    local += k_2 * coefficient_a2;
-    local += k_3 * coefficient_a3;
-    local += k_4 * coefficient_a4;
-    local += k_5 * coefficient_a5;
-    local = 1.0f - local * xNPrimeofX;
-
-    OutputX = sign ? (1.0f - local) : local;
-}
+void CNDF(float &InputX, float &OutputX) { OutputX = cndf_scalar(InputX); }
 
 static inline void naive_BlkSchls_one(float &CallOptionPrice,
                                       float &PutOptionPrice, float spotPrice,
@@ -83,11 +86,8 @@ static inline void naive_BlkSchls_one(float &CallOptionPrice,
 
     float d1 = xD1;
     float d2 = xD2;
-    float NofXd1 = 0.0f;
-    float NofXd2 = 0.0f;
-
-    CNDF(d1, NofXd1);
-    CNDF(d2, NofXd2);
+    const float NofXd1 = cndf_scalar(d1);
+    const float NofXd2 = cndf_scalar(d2);
 
     const float FutureValueX = strike * std::exp(-(rate) * (time));
     CallOptionPrice = (spotPrice * NofXd1) - (FutureValueX * NofXd2);
@@ -123,9 +123,48 @@ void stu_BlkSchls(std::vector<float> &CallOptionPrice,
                   const std::vector<float> &rate,
                   const std::vector<float> &volatility,
                   const std::vector<float> &time) {
-    // TODO:
-    // Implement your version for BlkSchls here, then 
-    // call it at stu_BlkSchls_wrapper()...
+    const size_t n = spotPrice.size();
+    if (n == 0) {
+        return;
+    }
+    // Restrict pointers: inputs do not alias outputs (SoA, separate allocation).
+    const float *const __restrict__ sp = spotPrice.data();
+    const float *const __restrict__ st = strike.data();
+    const float *const __restrict__ ra = rate.data();
+    const float *const __restrict__ vo = volatility.data();
+    const float *const __restrict__ ti = time.data();
+    float *const __restrict__ call = CallOptionPrice.data();
+    float *const __restrict__ puto = PutOptionPrice.data();
+
+    for (size_t i = 0; i < n; ++i) {
+        const float s = sp[i];
+        const float k_strike = st[i];
+        const float r = ra[i];
+        const float v = vo[i];
+        const float t = ti[i];
+
+        const float xSqrtTime = std::sqrt(t);
+        const float xLogTerm = std::log(s / k_strike);
+        const float xPowerTerm = 0.5f * v * v;
+
+        float xD1 = (r + xPowerTerm) * t + xLogTerm;
+        const float xDen = v * xSqrtTime;
+        xD1 = xD1 / xDen;
+        const float xD2 = xD1 - xDen;
+
+        const float d1 = xD1;
+        const float d2 = xD2;
+        const float NofXd1 = cndf_scalar(d1);
+        const float NofXd2 = cndf_scalar(d2);
+
+        const float FutureValueX = k_strike * std::exp(-(r) * (t));
+        const float c = (s * NofXd1) - (FutureValueX * NofXd2);
+        const float NegNofXd1 = 1.0f - NofXd1;
+        const float NegNofXd2 = 1.0f - NofXd2;
+        const float p = (FutureValueX * NegNofXd2) - (s * NegNofXd1);
+        call[i] = c;
+        puto[i] = p;
+    }
 }
 
 void naive_BlkSchls_wrapper(void *ctx) {
