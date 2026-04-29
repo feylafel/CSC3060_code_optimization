@@ -212,6 +212,49 @@ void csr_spmm(const CSRMatrix &csr, const std::vector<float> &dense_t,
     }
 }
 
+void stu_csr_spmm(const CSRMatrix &csr, const std::vector<float> &dense_t,
+              std::vector<float> &out) {
+    const int rows = csr.rows;
+    const int cols = csr.cols;
+    const int dense_cols = dense_t.size() / cols;
+    const float* __restrict dtptr = &dense_t[0];
+    const int* __restrict rowptr = &csr.row_ptr[0];
+    const int* __restrict colidxptr = &csr.col_idx[0];
+    const float* __restrict valptr = &csr.values[0];
+    std::fill(out.begin(), out.end(), 0.0f);
+    std::vector<float> d(dense_t.size());
+    for (int i = 0; i < dense_cols; i++)
+    {
+        const float* __restrict dtrow = &dtptr[i * cols];
+        for (int j = 0; j < cols; j++) {
+            d[j * dense_cols + i] = dtrow[j];
+        }
+    }
+    for (int row = 0; row < rows; ++row) {
+        float* __restrict out_row = &out[row * dense_cols];
+        const int plimit = csr.row_ptr[row + 1];
+        for (int p = csr.row_ptr[row]; p < plimit; ++p) {
+            float val = valptr[p];
+            int cidx = colidxptr[p];
+            const float* drow = &d[cidx * dense_cols];
+            int n = 0;
+            for (; n + 7 < dense_cols; n += 8) {
+                out_row[n] += val * drow[n];
+                out_row[n + 1] += val * drow[n + 1];
+                out_row[n + 2] += val * drow[n + 2];
+                out_row[n + 3] += val * drow[n + 3];
+                out_row[n + 4] += val * drow[n + 4];
+                out_row[n + 5] += val * drow[n + 5];
+                out_row[n + 6] += val * drow[n + 6];
+                out_row[n + 7] += val * drow[n + 7];
+            }
+            for (; n < dense_cols; ++n) {
+                out_row[n] += val * drow[n];
+            }
+        }  
+    }
+}
+
 void naive_sparse_spmm_wrapper(void *ctx) {
     auto &args = *static_cast<sparse_spmm_args *>(ctx);
     csr_spmm(args.csr, args.dense_t, args.out);
@@ -220,7 +263,7 @@ void naive_sparse_spmm_wrapper(void *ctx) {
 // TODO: Implement your version (e.g. stu_csr_spmm), and call it in stu_sparse_spmm_wrapper
 void stu_sparse_spmm_wrapper(void *ctx) {
     auto &args = *static_cast<sparse_spmm_args *>(ctx);
-    csr_spmm(args.csr, args.dense_t, args.out);
+    stu_csr_spmm(args.csr, args.dense_t, args.out);
 }
 
 bool sparse_spmm_check(void *stu_ctx, void *ref_ctx, lab_test_func naive_func) {
