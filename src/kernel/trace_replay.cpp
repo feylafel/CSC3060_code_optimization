@@ -81,7 +81,6 @@ void naive_trace_replay(uint64_t& out,
                         const std::vector<uint32_t>& trace) {
     uint64_t total = 0;
     const uint64_t order_mix = 1315423911ull;
-
     for (size_t i = 0; i < trace.size(); ++i) {
         total = total * order_mix + trace_replay_cost(records[trace[i]]);
     }
@@ -93,6 +92,32 @@ void stu_trace_replay(uint64_t& out,
                       const std::vector<RequestRecord>& records,
                       const std::vector<uint32_t>& trace) {
     // TODO: Implement your version, and call it in stu_trace_replay_wrapper
+    std::vector<uint64_t> cost(records.size());
+    for (size_t i = 0; i < records.size(); ++i) {
+        cost[i] = records[i].base_cost 
+        + (records[i].retry_penalty<<1) 
+        + records[i].miss_penalty 
+        + (records[i].bytes >> 4);
+    }
+    uint64_t total = 0;
+    size_t i = 0;
+    constexpr uint64_t order_mix1 = 1315423911ull;
+    constexpr uint64_t order_mix2 = order_mix1 * order_mix1; //order_mix^2
+    constexpr uint64_t order_mix3 = order_mix2 * order_mix1; //order_mix^3
+    constexpr uint64_t order_mix4 = order_mix3 * order_mix1; //order_mix^4
+    const uint32_t* __restrict traceptr = &trace[0];
+    const uint64_t* __restrict costptr = &cost[0];
+    for (; i + 3 < trace.size(); i += 4) {
+        total = total * order_mix4 
+        + costptr[traceptr[i]] * order_mix3 
+        + costptr[traceptr[i + 1]] * order_mix2 
+        + costptr[traceptr[i + 2]] * order_mix1 
+        + costptr[traceptr[i + 3]];
+    }
+    for (; i < trace.size(); ++i) {
+        total = total * order_mix1 + cost[trace[i]];
+    }
+    out = total;
 }
 
 void naive_trace_replay_wrapper(void* ctx) {
