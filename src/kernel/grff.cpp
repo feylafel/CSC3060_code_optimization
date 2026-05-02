@@ -78,7 +78,36 @@ void naive_grff(grff_args& args) {
 // TODO: Student Implementation
 // -------------------------------------------------------------------------
 void stu_grff(grff_args& args) {
+    size_t n = args.a_features.size();
+    
+    // Intermediate buffers
+    std::vector<float> G(n), A_prime(n);
 
+    float sum_a = 0.0f;
+    for (size_t i = 0; i < n; ++i) {
+        G[i] = 0.5f * ((args.a_features[i] * args.b_features[i]) / (1.0f + std::abs(args.a_features[i] * args.b_features[i])) + 1.0f); 
+        A_prime[i] = args.a_features[i] + G[i];
+        sum_a += A_prime[i];
+    }
+    float avg_a = sum_a / static_cast<float>(n);
+
+    // handle f_output[0] separately (i == 0)
+    const float smooth_a0 = A_prime[0];
+    const float b_val0 = args.b_features[0] * (1.0f - G[0]) * avg_a;
+    const float cprime0 = args.c_features[0] + (smooth_a0 / (1.0f + std::abs(smooth_a0)));
+    const float h_val0 = smooth_a0 * cprime0;
+    const float e_val0 = (h_val0 + b_val0) / (1.0f + std::abs(smooth_a0));
+    args.f_output[0] = std::max(cprime0 - e_val0, 0.0f);
+
+    // handle i = 1 to n - 1
+    for (size_t i = 1; i < n; ++i) {
+        const float smooth_a = (A_prime[i - 1] + A_prime[i]) * 0.5f; 
+        const float b_val = args.b_features[i] * (1.0f - G[i]) * avg_a;
+        const float cprime = args.c_features[i] + (smooth_a / (1.0f + std::abs(smooth_a)));
+        const float h_val = smooth_a * cprime;
+        const float e_val = (h_val + b_val) / (1.0f + std::abs(smooth_a));
+        args.f_output[i] = std::max(cprime - e_val, 0.0f);
+    } 
 }
 
 // -------------------------------------------------------------------------

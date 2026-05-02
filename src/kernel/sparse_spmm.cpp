@@ -232,8 +232,8 @@ void stu_csr_spmm(const CSRMatrix &csr, const std::vector<float> &dense_t,
     }
     for (int row = 0; row < rows; ++row) {
         float* __restrict out_row = &out[row * dense_cols];
-        const int plimit = csr.row_ptr[row + 1];
-        for (int p = csr.row_ptr[row]; p < plimit; ++p) {
+        const int plimit = rowptr[row + 1];
+        for (int p = rowptr[row]; p < plimit; ++p) {
             float val = valptr[p];
             int cidx = colidxptr[p];
             const float* drow = &d[cidx * dense_cols];
