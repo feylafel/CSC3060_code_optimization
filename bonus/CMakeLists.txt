@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+find_package(OpenMP REQUIRED)
+
 file(GLOB KERNEL_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_SOURCE_DIR}/src/kernel/*.cpp"
 )
@@ -18,7 +20,7 @@ target_include_directories(kernels
 
 target_compile_options(kernels
     PRIVATE
-        -O2 -ffast-math -Wall -g -fno-omit-frame-pointer #-O2 removed
+        -O2 -ffast-math -Wall -g -fno-omit-frame-pointer
 )
 
 # ---- Extra compiler flags for Bonus Tasks ----
@@ -29,6 +31,24 @@ set_source_files_properties(
     PROPERTIES
     COMPILE_OPTIONS "-O3;-mavx2;-march=native;"
 )
+
+set_source_files_properties(
+    "${CMAKE_SOURCE_DIR}/src/kernel/relu.cpp"
+    PROPERTIES
+    COMPILE_OPTIONS "-O3;-mavx2;-march=native;"
+)
+
+set_source_files_properties(
+    "${CMAKE_SOURCE_DIR}/src/kernel/matmul.cpp"
+    PROPERTIES
+    COMPILE_OPTIONS "-O3;-mavx2;-march=native;"
+)
+
+target_link_libraries(kernels
+    PUBLIC
+        OpenMP::OpenMP_CXX
+)
+
 
 target_include_directories(kernels PUBLIC include)
 

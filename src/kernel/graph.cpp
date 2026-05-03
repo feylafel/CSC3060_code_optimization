@@ -93,14 +93,10 @@ void stu_graph(std::uint64_t& out, const StuGraph& stu_graph) {
         const uint32_t* p = dest + nodepos[u];
         for (; p + 7 < r; p += 8) {
             // simulate eight edges u -> v, where v == p[0], p[1], until p[7]
-            res0 += p[0];
-            res1 += p[1];
-            res2 += p[2];
-            res3 += p[3];
-            res0 += p[4];
-            res1 += p[5];
-            res2 += p[6];
-            res3 += p[7];
+            res0 += p[0] + p[4];
+            res1 += p[1] + p[5];
+            res2 += p[2] + p[6];
+            res3 += p[3] + p[7];
         }
         for (; p < r; ++p) {
             res0 += *p;

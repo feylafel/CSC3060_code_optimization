@@ -31,6 +31,7 @@ void naive_relu(std::span<float> data) {
 }
 
 void stu_relu(std::span<float> data) {
+    #pragma omp parallel for schedule(static)
     for (float &value : data) {
         value = std::max(0.0f, value);
     }

@@ -81,30 +81,29 @@ void stu_graph(std::uint64_t& out, const StuGraph& stu_graph) {
     // TODO: You may need to add a function to convert data structure (not
     // included in time measurement), then implement your version in
     // stu_graph, whch is called by stu_graph_wrapper.  
-    std::uint64_t res = 0;
-    const int* __restrict nodepos = &stu_graph.nodepos[0];
-    const int* __restrict dest = &stu_graph.dest[0];
+    std::uint64_t res0 = 0;
+    std::uint64_t res1 = 0;
+    std::uint64_t res2 = 0;
+    std::uint64_t res3 = 0;
+    const uint32_t* __restrict nodepos = &stu_graph.nodepos[0];
+    const uint32_t* __restrict dest = &stu_graph.dest[0];
     const int n = stu_graph.n;
+    #pragma omp parallel for schedule(static) reduction(+:res0,res1,res2,res3)
     for (int u = 0; u < n; ++u){
-        const int r = nodepos[u + 1];
-        int i = nodepos[u];
-        __builtin_prefetch(&dest[r], 0, 3);
-        for (; i + 7 < r; i += 8) {
-            // simulate eight edges u -> v, where v == dest[i], dest[i + 1], until dest[i + 7]
-            res += dest[i];
-            res += dest[i + 1];
-            res += dest[i + 2];
-            res += dest[i + 3];
-            res += dest[i + 4];
-            res += dest[i + 5];
-            res += dest[i + 6];
-            res += dest[i + 7];
+        const uint32_t* r = dest + nodepos[u + 1];
+        const uint32_t* p = dest + nodepos[u];
+        for (; p + 7 < r; p += 8) {
+            // simulate eight edges u -> v, where v == p[0], p[1], until p[7]
+            res0 += p[0] + p[4];
+            res1 += p[1] + p[5];
+            res2 += p[2] + p[6];
+            res3 += p[3] + p[7];
         }
-        for (; i < r; ++i) {
-            res += dest[i];
+        for (; p < r; ++p) {
+            res0 += *p;
         }
     }
-    out = res;
+    out = res0 + res1 + res2 + res3;
 }
 
 void naive_graph_wrapper(void* ctx) {

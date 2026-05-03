@@ -84,6 +84,7 @@ void stu_grff(grff_args& args) {
     std::vector<float> G(n), A_prime(n);
 
     float sum_a = 0.0f;
+    // Stage 1-3
     for (size_t i = 0; i < n; ++i) {
         G[i] = 0.5f * ((args.a_features[i] * args.b_features[i]) / (1.0f + std::abs(args.a_features[i] * args.b_features[i])) + 1.0f); 
         A_prime[i] = args.a_features[i] + G[i];
@@ -99,7 +100,7 @@ void stu_grff(grff_args& args) {
     const float e_val0 = (h_val0 + b_val0) / (1.0f + std::abs(smooth_a0));
     args.f_output[0] = std::max(cprime0 - e_val0, 0.0f);
 
-    // handle i = 1 to n - 1
+    // handle i = 1 to n - 1 (Stage 4-9)
     for (size_t i = 1; i < n; ++i) {
         const float smooth_a = (A_prime[i - 1] + A_prime[i]) * 0.5f; 
         const float b_val = args.b_features[i] * (1.0f - G[i]) * avg_a;

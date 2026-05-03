@@ -25,8 +25,8 @@ struct Graph {
 
 struct StuGraph {
     int n;
-    std::vector<int> dest;
-    std::vector<int> nodepos; 
+    std::vector<uint32_t> dest;
+    std::vector<uint32_t> nodepos; 
 };
 
 struct graph_args {

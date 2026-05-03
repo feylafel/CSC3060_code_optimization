@@ -53,6 +53,7 @@ void stu_matmul(std::vector<float>& C,
     std::fill(C.begin(), C.end(), 0.0f);
     constexpr int iblocksz = 32;
     constexpr int jblocksz = 128;
+    #pragma omp parallel for collapse(2) schedule(static)
     for (int iblock = 0; iblock < n; iblock += iblocksz) {
         int ilim = std::min(iblock + iblocksz, n);
         for (int jblock = 0; jblock < n; jblock += jblocksz) {
@@ -103,7 +104,6 @@ void stu_matmul(std::vector<float>& C,
         }
     }
 }
-
 
 void naive_matmul_wrapper(void* ctx) {
     auto& args = *static_cast<matmul_args*>(ctx);
