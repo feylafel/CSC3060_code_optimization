@@ -8,6 +8,7 @@
 #include <vector>
 
 const std::chrono::nanoseconds BASELINE_GRFF{8500000};
+inline constexpr double NAIVE_SPEEDUP_LOWER_BOUND_GRFF{3.15};
 
 struct grff_args {
     // Input Features

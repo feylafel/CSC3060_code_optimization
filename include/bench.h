@@ -51,6 +51,7 @@ typedef struct {
     void *ref_args; // Naive benchmark context
 
     std::chrono::nanoseconds baseline_time;
+    double naive_speedup_lower_bound = 1.0;
 } bench_t;
 
 #ifdef DEBUG
@@ -92,6 +93,27 @@ inline double calculate_speedup(const bench_t &bench,
     return calculate_speedup(measured_time, bench.baseline_time);
 }
 
+inline double calculate_adjusted_naive_speedup(
+    std::chrono::nanoseconds naive_time, std::chrono::nanoseconds stu_time,
+    double naive_speedup_lower_bound) {
+    const auto naive_count = naive_time.count();
+    const auto stu_count = stu_time.count();
+    if (naive_count <= 0 || stu_count <= 0 || naive_speedup_lower_bound <= 0.0) {
+        throw std::invalid_argument(
+            "calculate_adjusted_naive_speedup: inputs must be positive.");
+    }
+
+    return static_cast<double>(naive_count) /
+           (static_cast<double>(stu_count) * naive_speedup_lower_bound);
+}
+
+inline double calculate_adjusted_naive_speedup(const bench_t &bench,
+                                               std::chrono::nanoseconds naive_time,
+                                               std::chrono::nanoseconds stu_time) {
+    return calculate_adjusted_naive_speedup(
+        naive_time, stu_time, bench.naive_speedup_lower_bound);
+}
+
 inline std::vector<double>
 calculate_speedups(const std::vector<std::chrono::nanoseconds> &measured_times,
                    const std::vector<bench_t> &benchmarks) {
@@ -128,10 +150,23 @@ calculate_geometric_mean_speedup(const std::vector<double> &speedups) {
 }
 
 inline double calculate_geometric_mean_speedup(
-    const std::vector<std::chrono::nanoseconds> &measured_times,
+    const std::vector<std::chrono::nanoseconds> &naive_times,
+    const std::vector<std::chrono::nanoseconds> &stu_times,
     const std::vector<bench_t> &benchmarks) {
-    return calculate_geometric_mean_speedup(
-        calculate_speedups(measured_times, benchmarks));
+    if (naive_times.size() != benchmarks.size() ||
+        stu_times.size() != benchmarks.size()) {
+        throw std::invalid_argument(
+            "calculate_geometric_mean_speedup: input size mismatch.");
+    }
+
+    std::vector<double> speedups;
+    speedups.reserve(benchmarks.size());
+    for (size_t i = 0; i < benchmarks.size(); ++i) {
+        speedups.push_back(calculate_adjusted_naive_speedup(
+            benchmarks[i], naive_times[i], stu_times[i]));
+    }
+
+    return calculate_geometric_mean_speedup(speedups);
 }
 
 constexpr int CACHE_SIZE = 1 << 26;

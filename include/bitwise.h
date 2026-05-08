@@ -8,6 +8,7 @@
 #include <vector>
 
 const std::chrono::nanoseconds BASELINE_BITWISE{250000};
+inline constexpr double NAIVE_SPEEDUP_LOWER_BOUND_BITWISE{8.00};
 
 struct bitwise_args {
     std::vector<std::int8_t> a;

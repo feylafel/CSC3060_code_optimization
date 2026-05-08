@@ -8,6 +8,7 @@
 #include <vector>
 
 inline constexpr std::chrono::nanoseconds BASELINE_FILTER_GRADIENT{25000000};
+inline constexpr double NAIVE_SPEEDUP_LOWER_BOUND_FILTER_GRADIENT{1.45};
 
 struct data_struct {
     std::vector<float> a;
@@ -41,7 +42,7 @@ struct filter_gradient_args {
     std::size_t height;
     float out;
     double epsilon;
-    filter_gradient_grouped grouped;
+    filter_gradient_grouped aos_data;
 
     explicit filter_gradient_args(double epsilon_in = 1e-6)
         : width(0), height(0), out(0.0f), epsilon(epsilon_in) {}
@@ -50,7 +51,7 @@ struct filter_gradient_args {
 // TODO: You may need to add a function to convert data structure (not 
 // included in time measurement), then implement your version in 
 // stu_filter_gradient, whch is called by stu_filter_gradient_wrapper.
-void convert_filter_gradient_data_to_grouped(filter_gradient_args* args);
+void convert_soa_to_aos(filter_gradient_grouped& newdata, data_struct& olddata);
 
 void naive_filter_gradient(float& out, const data_struct& data,
                    std::size_t width, std::size_t height);

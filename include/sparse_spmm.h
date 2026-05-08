@@ -17,6 +17,7 @@ struct CSRMatrix {
 };
 
 const std::chrono::nanoseconds BASELINE_SPARSE_SPMM{116000000};
+inline constexpr double NAIVE_SPEEDUP_LOWER_BOUND_SPARSE_SPMM{1.40};
 
 struct sparse_spmm_args {
     std::vector<float> out;

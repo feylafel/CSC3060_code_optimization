@@ -8,6 +8,7 @@
 #include <vector>
 
 const std::chrono::nanoseconds BASELINE_IMAGE_PROC{43000000};
+inline constexpr double NAIVE_SPEEDUP_LOWER_BOUND_IMAGE_PROC{1.73};
 
 struct image_proc_args {
     std::vector<float> r_channel;

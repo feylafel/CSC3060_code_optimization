@@ -7,6 +7,7 @@
 #include <vector>
 
 const std::chrono::nanoseconds BASELINE_BLACKSCHOLES{4800000};
+inline constexpr double NAIVE_SPEEDUP_LOWER_BOUND_BLACKSCHOLES{1.35};
 
 struct blackscholes_args {
     std::vector<float> call_option_price;

@@ -7,6 +7,7 @@
 #include <vector>
 
 const std::chrono::nanoseconds BASELINE_MATMUL{88000000};
+inline constexpr double NAIVE_SPEEDUP_LOWER_BOUND_MATMUL{2.45};
 
 struct matmul_args {
     std::vector<float> C;

@@ -9,6 +9,7 @@
 #include <vector>
 
 const std::chrono::nanoseconds BASELINE_RELU{550000};
+inline constexpr double NAIVE_SPEEDUP_LOWER_BOUND_RELU{2.50};
 
 struct relu_args {
     std::vector<float> data;

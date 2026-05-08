@@ -16,6 +16,7 @@ struct RequestRecord {
 };
 
 const std::chrono::nanoseconds BASELINE_TRACE_REPLAY{3400000};
+inline constexpr double NAIVE_SPEEDUP_LOWER_BOUND_TRACE_REPLAY{1.75};
 
 struct trace_replay_args {
     uint64_t out = 0;
