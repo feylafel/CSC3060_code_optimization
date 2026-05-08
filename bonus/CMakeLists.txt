@@ -44,6 +44,14 @@ set_source_files_properties(
     COMPILE_OPTIONS "-O3;-mavx2;-march=native;"
 )
 
+# blackscholes.cpp: per-option loop is parallelised with OpenMP and the LUT/Taylor
+# helpers benefit from FMA + AVX2 codegen.
+set_source_files_properties(
+    "${CMAKE_SOURCE_DIR}/src/kernel/blackscholes.cpp"
+    PROPERTIES
+    COMPILE_OPTIONS "-O3;-mavx2;-march=native;"
+)
+
 target_link_libraries(kernels
     PUBLIC
         OpenMP::OpenMP_CXX
