@@ -8,7 +8,6 @@
 #include <vector>
 
 const std::chrono::nanoseconds BASELINE_GRAPH{5000000};
-inline constexpr double NAIVE_SPEEDUP_LOWER_BOUND_GRAPH{2.50};
 
 struct Edge {
     int to;
@@ -37,7 +36,7 @@ struct graph_args {
     std::uint64_t out;
     double epsilon;
     // TODO: You may want to add new params at the end...
-    StuGraph graph_csr;
+    StuGraph stugraph;
     explicit graph_args(double epsilon_in = 1e-6)
         : graph{0, nullptr}, out{0}, epsilon{epsilon_in} {}
 };
@@ -46,7 +45,7 @@ void naive_graph(std::uint64_t& out, const Graph& graph);
 // TODO: You may need to add a function to convert data structure (not 
 // included in time measurement), then implement your version in 
 // stu_graph, whch is called by stu_graph_wrapper.
-void convert_graph_to_csr(StuGraph &stugraph, Graph &graph);
+void convert_graph(Graph &graph, StuGraph &stugraph);
 
 void stu_graph(std::uint64_t& out, const StuGraph &stu_graph);
 

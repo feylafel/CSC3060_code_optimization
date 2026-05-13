@@ -6,7 +6,7 @@
 #include <random>
 #include <vector>
 
-void convert_graph_to_csr(StuGraph &stugraph, Graph &graph)
+void convert_graph(Graph &graph, StuGraph &stugraph)
 {
     stugraph.n = graph.n;
     stugraph.nodepos.resize(graph.n + 1);
@@ -60,6 +60,8 @@ void initialize_graph(graph_args* args,
         args->nodes[u].edges = head;
         edge_pos += static_cast<std::size_t>(avg_degree);
     }
+
+    convert_graph(args->graph, args->stugraph);
     args->out = 0;
 }
 
@@ -110,7 +112,7 @@ void naive_graph_wrapper(void* ctx) {
 
 void stu_graph_wrapper(void* ctx) {
     auto& args = *static_cast<graph_args*>(ctx);
-    stu_graph(args.out, args.graph_csr);
+    stu_graph(args.out, args.stugraph);
 }
 
 bool graph_check(void* stu_ctx, void* ref_ctx, lab_test_func naive_func) {

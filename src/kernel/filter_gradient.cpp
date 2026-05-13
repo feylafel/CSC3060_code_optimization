@@ -6,11 +6,17 @@
 #include <cstdint>
 #include <random>
 
-void convert_soa_to_aos(filter_gradient_grouped& newdata, data_struct& olddata) {
-    const std::size_t n = olddata.a.size();
+void convert_filter_gradient_data_to_grouped(filter_gradient_args* args) {
+    if (!args) {
+        return;
+    }
+    const std::size_t n = args->width * args->height;
+    if (n == 0) {
+        return;
+    }
     const std::size_t t = 3 * n;
-    data_struct& d = olddata;
-    filter_gradient_grouped& g = newdata;
+    data_struct& d = args->data;
+    filter_gradient_grouped& g = args->grouped;
 
     g.abc.resize(t);
     g.def.resize(t);
@@ -72,6 +78,7 @@ void initialize_filter_gradient(filter_gradient_args* args,
         args->data.i[k] = dist(gen);
     }
     // Conversion is not part of the timed stu kernel (runs in init, beforeenchmarks).
+    convert_filter_gradient_data_to_grouped(args);
 }
 
 void naive_filter_gradient(float& out, const data_struct& data,
@@ -253,7 +260,7 @@ void naive_filter_gradient_wrapper(void* ctx) {
 void stu_filter_gradient_wrapper(void* ctx) {
     auto& args = *static_cast<filter_gradient_args*>(ctx);
     args.out = 0.0f;
-    stu_filter_gradient(args.out, args.aos_data, args.width, args.height);
+    stu_filter_gradient(args.out, args.grouped, args.width, args.height);
 }
 
 bool filter_gradient_check(void* stu_ctx, void* ref_ctx, lab_test_func naive_func) {
