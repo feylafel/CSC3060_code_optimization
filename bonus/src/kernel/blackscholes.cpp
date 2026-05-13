@@ -241,22 +241,17 @@ void stu_BlkSchls(std::vector<float> &CallOptionPrice,
     float *const __restrict__ call = CallOptionPrice.data();
     float *const __restrict__ puto = PutOptionPrice.data();
 
-    // Bonus: parallelise the per-option loop. Each iteration writes call[k]/puto[k]
-    // for a unique k, so there is no cross-iteration state and no reduction needed.
-    // The 4-way unroll + 8-ahead prefetch are preserved by iterating over 4-blocks.
-    const size_t main_end = (n >= 4) ? (n - (n % 4)) : 0;
-
-    #pragma omp parallel for schedule(static)
-    for (size_t b = 0; b < main_end; b += 4) {
+    size_t i = 0;
+    for (; i + 3 < n; i += 4) {
 #if defined(__GNUC__) && !defined(__NuttX__)
-        __builtin_prefetch(&sp[b + 8], 0, 1);
-        __builtin_prefetch(&st[b + 8], 0, 1);
-        __builtin_prefetch(&ra[b + 8], 0, 1);
-        __builtin_prefetch(&vo[b + 8], 0, 1);
-        __builtin_prefetch(&ti[b + 8], 0, 1);
+        __builtin_prefetch(&sp[i + 8], 0, 1);
+        __builtin_prefetch(&st[i + 8], 0, 1);
+        __builtin_prefetch(&ra[i + 8], 0, 1);
+        __builtin_prefetch(&vo[i + 8], 0, 1);
+        __builtin_prefetch(&ti[i + 8], 0, 1);
 #endif
         for (int j = 0; j < 4; ++j) {
-            const size_t k = b + static_cast<std::size_t>(j);
+            const size_t k = i + static_cast<std::size_t>(j);
             const float s = sp[k];
             const float k_strike = st[k];
             const float r = ra[k];
@@ -280,7 +275,7 @@ void stu_BlkSchls(std::vector<float> &CallOptionPrice,
             puto[k] = p;
         }
     }
-    for (size_t i = main_end; i < n; ++i) {
+    for (; i < n; ++i) {
         const float s = sp[i];
         const float k_strike = st[i];
         const float r = ra[i];
