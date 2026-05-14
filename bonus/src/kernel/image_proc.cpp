@@ -169,6 +169,7 @@ void stu_image_proc(image_proc_args& args) {
     const float *__restrict__ g_in = args.g_channel.data();
     const float *__restrict__ b_in = args.b_channel.data();
     const float threshold = args.threshold;
+    #pragma omp parallel for collapse(2) schedule(static)
     for (size_t y = 0; y < h; ++y) {
         for (size_t x = 0; x < w; ++x) {
             const size_t i = y * w + x;
