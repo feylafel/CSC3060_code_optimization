@@ -29,20 +29,45 @@ target_compile_options(kernels
 set_source_files_properties(
     "${CMAKE_SOURCE_DIR}/src/kernel/bitwise.cpp"
     PROPERTIES
-    COMPILE_OPTIONS "-O3;-mavx2;-march=native;"
+    COMPILE_OPTIONS "-O3;-mavx2;-march=native"
 )
 
 set_source_files_properties(
     "${CMAKE_SOURCE_DIR}/src/kernel/relu.cpp"
     PROPERTIES
-    COMPILE_OPTIONS "-O3;-mavx2;-march=native;"
+    COMPILE_OPTIONS "-O3;-mavx2;-march=native"
+)
+
+set_source_files_properties(
+    "${CMAKE_SOURCE_DIR}/src/kernel/blackscholes.cpp"
+    PROPERTIES
+    COMPILE_OPTIONS "-O3;-mavx2;-march=native"
 )
 
 set_source_files_properties(
     "${CMAKE_SOURCE_DIR}/src/kernel/matmul.cpp"
     PROPERTIES
-    COMPILE_OPTIONS "-O3;-mavx2;-march=native;"
+    COMPILE_OPTIONS "-O3;-mavx2;-march=native"
 )
+
+set_source_files_properties(
+    "${CMAKE_SOURCE_DIR}/src/kernel/trace_replay.cpp"
+    PROPERTIES
+    COMPILE_OPTIONS "-O3;-mavx2;-march=native"
+)
+
+set_source_files_properties(
+    "${CMAKE_SOURCE_DIR}/src/kernel/graph.cpp"
+    PROPERTIES
+    COMPILE_OPTIONS "-O3;-mavx2;-march=native"
+)
+
+set_source_files_properties(
+    "${CMAKE_SOURCE_DIR}/src/kernel/grff.cpp"
+    PROPERTIES
+    COMPILE_OPTIONS "-O3;-mavx2;-march=native"
+)
+
 
 target_link_libraries(kernels
     PUBLIC
